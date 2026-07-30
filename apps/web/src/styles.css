@@ -84,6 +84,7 @@ main {max-width: 1540px; margin: auto; padding: 24px clamp(18px, 3.2vw, 54px) 70
   display: flex; align-items: center; gap: 18px; color: #bdd3ca; font-size: 9px;
 }
 .filter-meta strong {color: #f2d67c}
+.version-badge {border: 1px solid #ffffff32; border-radius: 999px; padding: 3px 7px; color: #e9f4ef}
 .filter-meta button {
   margin-left: auto; border: 0; border-radius: 8px; color: var(--green-dark);
   background: #f1d277; padding: 7px 11px; font-size: 9px; font-weight: 700; cursor: pointer;
@@ -108,7 +109,6 @@ main {max-width: 1540px; margin: auto; padding: 24px clamp(18px, 3.2vw, 54px) 70
   padding: 9px 10px; text-align: left; cursor: pointer; font-size: 10px; display: flex; align-items: center; gap: 9px;
 }
 .crop-bullet i {width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 0 3px #00000008}
-.crop-bullet.all i {background: #9aa69f}
 .crop-bullet:hover {background: #f2f6f3}
 .crop-bullet.active {background: var(--green-dark); color: #fff; font-weight: 600}
 .crop-bullet.active i {box-shadow: 0 0 0 3px #ffffff30}

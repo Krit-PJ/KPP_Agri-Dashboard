@@ -12,6 +12,12 @@ export type Kpis = {
   weightedYield: number | null; harvestRate: number | null;
 };
 
+export type CropShare = {
+  cropId: string;
+  planted: number;
+  percent: number | null;
+};
+
 export function calculateKpis(records: CropRecord[]): Kpis {
   const sum = (key: "planted_area_rai" | "harvested_area_rai" | "production_ton") =>
     records.reduce((total, row) => total + (row[key] ?? 0), 0);
@@ -23,6 +29,25 @@ export function calculateKpis(records: CropRecord[]): Kpis {
     weightedYield: harvested > 0 ? production * 1000 / harvested : null,
     harvestRate: planted > 0 ? harvested / planted : null,
   };
+}
+
+export function toggleYearSelection(selectedYears: number[], year: number): number[] {
+  if (!selectedYears.includes(year)) return [...selectedYears, year];
+  return selectedYears.length === 1
+    ? selectedYears
+    : selectedYears.filter(selectedYear => selectedYear !== year);
+}
+
+export function calculateCropShares(records: CropRecord[], cropIds: string[]): CropShare[] {
+  const plantedByCrop = cropIds.map(cropId => ({
+    cropId,
+    planted: calculateKpis(records.filter(record => record.crop_id === cropId)).planted,
+  }));
+  const totalPlanted = plantedByCrop.reduce((total, crop) => total + crop.planted, 0);
+  return plantedByCrop.map(crop => ({
+    ...crop,
+    percent: totalPlanted > 0 ? crop.planted / totalPlanted : null,
+  }));
 }
 
 export function yoy(current: number | null, previous: number | null): number | null {

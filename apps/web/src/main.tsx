@@ -4,7 +4,14 @@ import {init, use, type EChartsCoreOption} from "echarts/core";
 import {BarChart, LineChart, PieChart} from "echarts/charts";
 import {GridComponent, LegendComponent, TooltipComponent} from "echarts/components";
 import {CanvasRenderer} from "echarts/renderers";
-import {calculateKpis, cropColors, yoy, type Kpis} from "@kpp/shared";
+import {
+  calculateCropShares,
+  calculateKpis,
+  cropColors,
+  toggleYearSelection,
+  yoy,
+  type Kpis,
+} from "@kpp/shared";
 import {loadDashboardData, spreadsheetUrl, type DashboardData, type DashboardPayload} from "./dataSource";
 import "./styles.css";
 
@@ -18,7 +25,19 @@ const numberFormat = new Intl.NumberFormat("th-TH", {maximumFractionDigits: 0});
 const decimalFormat = new Intl.NumberFormat("th-TH", {maximumFractionDigits: 1});
 const percentFormat = new Intl.NumberFormat("th-TH", {style: "percent", maximumFractionDigits: 1});
 const dateFormat = new Intl.DateTimeFormat("th-TH", {dateStyle: "medium", timeStyle: "short"});
+const appVersion = "4.1.0";
 const cropPalette = ["#16835e", "#2457c5", "#f2a33a", "#9a62c7", "#e05b72", "#6e7e45", "#d4b22c", "#4f92a6", "#e37d42"];
+const cropCatalog: [string, string][] = [
+  ["rice_offseason", "ข้าวนาปรัง"],
+  ["rice_main", "ข้าวนาปี"],
+  ["maize_1", "ข้าวโพดรุ่น 1"],
+  ["maize_2", "ข้าวโพดรุ่น 2"],
+  ["cassava", "มันสำปะหลัง"],
+  ["oil_palm", "ปาล์มน้ำมัน"],
+  ["rubber", "ยางพารา"],
+  ["sugarcane", "อ้อย"],
+  ["banana_egg", "กล้วยไข่"],
+];
 
 const metricMeta: Record<Metric, {label: string; unit: string}> = {
   planted: {label: "เนื้อที่เพาะปลูก", unit: "ไร่"},
@@ -67,7 +86,7 @@ function App() {
   const [connection, setConnection] = useState<DashboardData | null>(null);
   const [loadError, setLoadError] = useState("");
   const [selectedYears, setSelectedYears] = useState<number[]>([]);
-  const [crop, setCrop] = useState("all");
+  const [crop, setCrop] = useState(cropCatalog[0][0]);
   const [district, setDistrict] = useState("all");
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -86,8 +105,10 @@ function App() {
   );
   const options = useMemo(() => data ? {
     years: [...new Set(published.map(record => record.year_be))].sort((a, b) => b - a),
-    crops: [...new Map(published.map(record => [record.crop_id, record.crop_name])).entries()]
-      .sort((a, b) => a[1].localeCompare(b[1], "th")),
+    crops: cropCatalog.map(([id, fallbackName]) => [
+      id,
+      published.find(record => record.crop_id === id)?.crop_name || fallbackName,
+    ] as [string, string]),
     districts: [...new Set(published.map(record => record.district_name))].sort((a, b) => a.localeCompare(b, "th")),
   } : null, [data, published]);
 
@@ -96,7 +117,7 @@ function App() {
   }, [options, selectedYears.length]);
 
   const context = useMemo(() => published.filter(record =>
-    (crop === "all" || record.crop_id === crop)
+    record.crop_id === crop
     && (district === "all" || record.district_name === district)
   ), [published, crop, district]);
 
@@ -126,11 +147,13 @@ function App() {
     const yearRecords = published.filter(record =>
       record.year_be === year && (district === "all" || record.district_name === district)
     );
+    const shares = calculateCropShares(yearRecords, options?.crops.map(([id]) => id) ?? []);
     return {
       year,
       data: options?.crops.map(([id, name], index) => ({
         name,
-        value: calculateKpis(yearRecords.filter(record => record.crop_id === id)).planted,
+        value: shares.find(item => item.cropId === id)?.planted ?? 0,
+        sharePercent: shares.find(item => item.cropId === id)?.percent ?? null,
         itemStyle: {color: cropColors[id] ?? cropPalette[index % cropPalette.length]},
         selected: crop === id,
       })).filter(item => item.value > 0) ?? [],
@@ -145,26 +168,24 @@ function App() {
     <span className="loader"/><p>กำลังเชื่อมต่อ Google Sheets…</p>
   </main>;
 
-  const selectedCrop = options.crops.find(([id]) => id === crop)?.[1] ?? "พืชทุกชนิด";
+  const selectedCrop = options.crops.find(([id]) => id === crop)?.[1] ?? cropCatalog[0][1];
   const selectedDistrict = district === "all" ? "ทุกอำเภอ" : district;
   const yearLabel = selectedYearsAscending.length === 1
     ? `พ.ศ. ${selectedYearsAscending[0]}`
     : `พ.ศ. ${selectedYearsAscending.join(", ")}`;
   const hasFilters = selectedYears.length !== 1
     || selectedYears[0] !== options.years[0]
-    || crop !== "all"
+    || crop !== cropCatalog[0][0]
     || district !== "all";
   const warningCount = selectedRecords.filter(record => record.quality_status !== "pass").length;
   const freshness = dateFormat.format(new Date(connection.fetchedAt));
 
   const toggleYear = (year: number) => {
-    setSelectedYears(current => current.includes(year)
-      ? current.length === 1 ? current : current.filter(item => item !== year)
-      : [...current, year]);
+    setSelectedYears(current => toggleYearSelection(current, year));
   };
   const reset = () => {
     setSelectedYears(options.years.slice(0, 1));
-    setCrop("all");
+    setCrop(cropCatalog[0][0]);
     setDistrict("all");
   };
 
@@ -258,6 +279,7 @@ function App() {
           <span>เลือกแล้ว <strong>{selectedYears.length}</strong> ปี</span>
           <span>{selectedCrop} · {selectedDistrict}</span>
           <span>อัปเดต {freshness}</span>
+          <span className="version-badge">Dashboard v{appVersion}</span>
           <button type="button" onClick={reset} disabled={!hasFilters}>ล้างตัวกรองทั้งหมด</button>
         </div>
       </section>
@@ -269,10 +291,7 @@ function App() {
 
       <div className="dashboard-layout">
         <aside className="crop-sidebar" aria-label="เลือกชนิดพืช">
-          <div className="sidebar-head"><span>ชนิดพืช</span><small>เลือก 1 รายการ</small></div>
-          <button type="button" className={`crop-bullet all ${crop === "all" ? "active" : ""}`} onClick={() => setCrop("all")}>
-            <i/>พืชทุกชนิด
-          </button>
+          <div className="sidebar-head"><span>ชนิดพืช</span><small>9 ชนิด · เลือก 1</small></div>
           {options.crops.map(([id, name], index) => <button
             type="button"
             key={id}
@@ -330,8 +349,9 @@ function App() {
                   tooltip: {
                     trigger: "item",
                     formatter: (params: unknown) => {
-                      const item = params as {name: string; value: number; percent: number};
-                      return `${item.name}<br/>${numberFormat.format(item.value)} ไร่ (${decimalFormat.format(item.percent)}%)`;
+                      const item = params as {name: string; value: number; data: {sharePercent: number | null}};
+                      const share = item.data.sharePercent === null ? "—" : percentFormat.format(item.data.sharePercent);
+                      return `${item.name}<br/>${numberFormat.format(item.value)} ไร่ (${share})`;
                     },
                   },
                   legend: {bottom: 0, type: "scroll", itemWidth: 8, itemHeight: 8, textStyle: {color: "#637069", fontSize: 9}},
@@ -409,7 +429,7 @@ function App() {
 
     <footer>
       <div className="footer-brand"><div className="mark">กพ</div><div><strong>KPP Agri Data</strong><span>Dashboard สถานการณ์การผลิตพืช จังหวัดกำแพงเพชร</span></div></div>
-      <p>Frontend: GitHub Pages · Database: Google Sheets · แหล่งข้อมูล: {connection.sourceLabel}</p>
+      <p>Dashboard v{appVersion} · Frontend: GitHub Pages · Database: Google Sheets · แหล่งข้อมูล: {connection.sourceLabel}</p>
     </footer>
   </div>;
 }
