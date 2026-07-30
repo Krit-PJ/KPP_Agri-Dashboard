@@ -1,0 +1,402 @@
+# Master Prompt: ระบบ Data Visualization และ Dashboard สถานการณ์พืช จังหวัดกำแพงเพชร
+
+คัดลอกข้อความตั้งแต่หัวข้อ “PROMPT” ลงไปใช้กับ ChatGPT/Codex ที่สามารถเขียนโค้ด เชื่อม GitHub และสร้างระบบบน Google Cloud ได้
+
+---
+
+## PROMPT
+
+คุณคือทีมผู้เชี่ยวชาญระดับ Senior ประกอบด้วย Data Scientist, Data Engineer, UX/UI Designer, Frontend Engineer, Backend Engineer, Google Cloud Architect, Security Engineer และ QA Engineer จงวิเคราะห์ ออกแบบ พัฒนา ทดสอบ และจัดทำเอกสารสำหรับระบบ “Dashboard สถานการณ์การเพาะปลูกพืช จังหวัดกำแพงเพชร” ให้เป็นระบบพร้อมใช้งานจริง โดยใช้ข้อมูลจากไฟล์ Excel ที่แนบและใช้ Dashboard Power BI ต่อไปนี้เป็นต้นแบบด้านเนื้อหาและพฤติกรรม:
+
+- Power BI ต้นแบบ: `https://app.powerbi.com/view?r=eyJrIjoiNTk1NmVhM2UtMjZkZC00Yzc2LWE4NTAtZWViZThmOGIxY2RkIiwidCI6ImNmODFmMWRmLWRlNTktNGMyOS05MWRhLWEyZGZkMDRhYTc1MSIsImMiOjEwfQ%3D%3D`
+- ไฟล์ข้อมูล: `1.2.1 พืช-อำเภอต่อปี-new.xlsx`
+
+ห้ามคัดลอกหน้าตา Power BI แบบตรงตัว ให้ถอด “สารสนเทศ ตัวชี้วัด ตัวกรอง และรูปแบบการโต้ตอบ” แล้วออกแบบใหม่ให้ทันสมัย สวยงาม เป็นเอกลักษณ์ของจังหวัดกำแพงเพชร ใช้งานง่ายบนคอมพิวเตอร์ แท็บเล็ต และโทรศัพท์
+
+### 1. เป้าหมายและผู้ใช้
+
+ระบบต้องสนับสนุนผู้ใช้ 3 กลุ่ม:
+
+1. ประชาชนและผู้บริหาร: ดู Dashboard สาธารณะโดยไม่ต้องเข้าสู่ระบบ
+2. เจ้าหน้าที่/Editor: เพิ่ม แก้ไข นำเข้า และตรวจสอบข้อมูล แต่เผยแพร่หรือลบไม่ได้
+3. Admin: จัดการข้อมูล ผู้ใช้ การนำเข้า การเผยแพร่ การลบแบบกู้คืนได้ และดู Audit Log
+
+เป้าหมายหลัก:
+
+- สรุปพื้นที่เพาะปลูก พื้นที่เก็บเกี่ยว ผลผลิต และผลผลิตเฉลี่ย
+- วิเคราะห์แนวโน้มรายปี เปรียบเทียบชนิดพืชและอำเภอ
+- แสดงการเปลี่ยนแปลงเทียบปีก่อนอย่างถูกต้อง
+- ทำให้ข้อมูลตรวจสอบย้อนกลับได้ มีสถานะ Draft/Published/Archived
+- ทำให้เจ้าหน้าที่นำเข้าข้อมูลใหม่ได้โดยไม่ต้องแก้โค้ด
+
+### 2. ข้อค้นพบจากข้อมูลที่ต้องนำไปใช้จริง
+
+ก่อนเขียนโค้ด ให้ตรวจสอบไฟล์ต้นฉบับซ้ำด้วยโปรแกรมและสร้าง Data Profiling Report โดยอย่าเชื่อค่าที่ระบุใน Prompt โดยอัตโนมัติ อย่างไรก็ตาม ผลตรวจเบื้องต้นที่ต้องใช้เป็นเกณฑ์เทียบมีดังนี้:
+
+- Workbook มี 12 ชีต
+- ชีต `รายละเอียดรวม` มี 572 ระเบียน 11 อำเภอ 7 ชนิดพืช ปี พ.ศ. 2558–2566 ไม่มีค่าว่างใน 8 ฟิลด์หลัก และไม่พบ key ซ้ำจาก `(อำเภอ, ปี พ.ศ., พืช)`
+- ชีตรายพืช 9 ชีตมีรวม 792 ระเบียน ครอบคลุม ข้าวนาปรัง ข้าวนาปี ข้าวโพดรุ่น 1 ข้าวโพดรุ่น 2 มันสำปะหลัง ปาล์มน้ำมัน ยางพารา อ้อย และกล้วยไข่
+- `รายละเอียดรวม` ไม่ใช่แหล่งข้อมูลรวมที่สมบูรณ์: ขาดอ้อย 88 แถว กล้วยไข่ 110 แถว ข้าวนาปรังปี 2565 จำนวน 11 แถว ปาล์มน้ำมันปี 2564 จำนวน 11 แถว และยางพาราปี 2564 จำนวน 11 แถว แต่มีข้าวโพดรุ่น 2 ปี 2558 เกินมา 11 แถวเมื่อเทียบกับชีตรายพืช
+- ชีต `ทบก. นาปี รายเดือน` มี 264 ระเบียนสำหรับปี 2565–2566 ครบ 12 เดือนและ 11 อำเภอ แต่คอลัมน์ `ครัวเรือนเกษตรกร` และ `เนื้อที่เพาะปลูก (ไร่)` ว่างทั้งหมด จึงห้ามรวมค่าเหล่านี้ใน Dashboard สาธารณะ
+- พบกรณีต้องตรวจสอบ: อำเภอไทรงาม ข้าวโพดรุ่น 2 ปี 2566 พื้นที่เพาะปลูก 5,407 ไร่ แต่พื้นที่เก็บเกี่ยว 6,488 ไร่
+- ชื่อและหัวตารางไม่สม่ำเสมอ เช่น `ข้าวโพด รุ่น1` กับ `ข้าวโพดรุ่น1`, ชื่อชีตพิมพ์ผิด `กล้อวยไข่`, มีช่องว่าง/อักขระ NBSP หน้าชื่ออำเภอ, มีคอลัมน์ `คอลัมน์1` ที่ไม่ใช่ข้อมูลธุรกิจ และชื่อคอลัมน์ผลผลิตต่อไร่ต่างกันตามชนิดพืช
+- Power BI หน้าข้าวนาปีมีข้อมูลปี 2565 แต่ชีตข้าวนาปีในไฟล์แนบสิ้นสุดปี 2564 แสดงว่าข้อมูลในลิงก์และไฟล์แนบอาจเป็นคนละรุ่น ห้ามนำค่าจากสองแหล่งมารวมกันโดยไม่มีการ reconciliation และการอนุมัติ
+
+สำหรับการนำเข้าครั้งแรก ให้ถือ “ชีตรายพืช 9 ชีต” เป็น provisional source of truth แทน `รายละเอียดรวม` แต่ต้องแสดงรายงานความแตกต่างให้ Admin อนุมัติก่อนเผยแพร่ เมื่อผ่านการอนุมัติแล้ว Google Sheets ชุดกลางจะเป็น canonical source of truth
+
+### 3. สถาปัตยกรรมที่ต้องใช้
+
+ใช้สถาปัตยกรรมต่อไปนี้:
+
+- Frontend และ source code: GitHub repository
+- Hosting Frontend: GitHub Pages ผ่าน GitHub Actions
+- Frontend stack: React + TypeScript + Vite
+- Styling: Tailwind CSS หรือ CSS Design Tokens ที่ดูแลได้ง่าย
+- Charts: Apache ECharts โดยจัดทำ wrapper component กลาง
+- State/data fetching: TanStack Query
+- Routing: React Router และรองรับ GitHub Pages base path
+- Backend API: Google Cloud Run ใช้ Node.js + TypeScript
+- Authentication: Google Identity Services
+- Authorization: RBAC จากชีต `users`
+- Database: Google Sheets
+- File storage: Google Drive
+- Backend identity: user-managed service account ที่แชร์สิทธิ์เฉพาะ Spreadsheet และ Drive folder ที่ระบบใช้
+
+เหตุผลเชิงความปลอดภัยที่ต้องปฏิบัติ:
+
+- GitHub Pages เป็น static frontend จึงห้ามใส่ service-account key, OAuth client secret, Drive credential หรือ secret ใด ๆ ใน frontend/repository
+- Frontend รับ Google ID token แล้วส่งให้ Cloud Run
+- Backend ต้องตรวจลายเซ็นและค่า `iss`, `aud`, `exp`, `email_verified` ของ ID token ทุกครั้ง
+- Backend ตรวจ email/role/active จาก `users` ก่อนอนุญาตคำสั่ง Admin
+- ห้ามเชื่อ role ที่ส่งมาจาก browser
+- จำกัด CORS เฉพาะ production domain, preview domain ที่อนุญาต และ localhost ใน development
+- Public API เป็น read-only; write API ต้อง authenticated และ authorized
+- ใช้ rate limiting, input validation, payload size limit, security headers และ structured logging
+- หากไม่สามารถใช้ Cloud Run ได้ ให้เสนอ Google Apps Script เป็น “MVP fallback” พร้อมอธิบายข้อจำกัดด้าน CORS, RBAC, audit และ scalability ห้ามลดระดับไปใช้ API key ฝังในหน้าเว็บเพื่อเขียน Sheets
+
+แสดง Architecture Diagram ด้วย Mermaid ใน README:
+
+`Public/Admin Browser -> GitHub Pages SPA -> Cloud Run API -> Google Sheets / Google Drive`
+
+โดย Google Sign-In ออก ID token ให้ Browser และ Cloud Run ตรวจ token + RBAC ก่อนทำรายการเขียน
+
+### 4. โครงสร้าง Google Sheets
+
+สร้าง Spreadsheet กลางและใช้ชื่อชีตดังนี้:
+
+#### `fact_crop_annual`
+
+- `record_id` UUID
+- `province_code`
+- `province_name`
+- `district_code`
+- `district_name`
+- `year_be`
+- `year_ce`
+- `crop_id`
+- `crop_name`
+- `planted_area_rai`
+- `harvested_area_rai`
+- `production_ton`
+- `reported_yield_planted_kg_rai`
+- `reported_yield_harvested_kg_rai`
+- `calculated_yield_kg_rai`
+- `source_file_id`
+- `source_sheet`
+- `source_row`
+- `data_status` = draft/published/archived
+- `quality_status` = pass/warning/error
+- `quality_notes`
+- `created_at`, `created_by`, `updated_at`, `updated_by`
+- `row_version`
+- `deleted_at`, `deleted_by`
+
+Unique business key: `(district_code, year_be, crop_id)` เฉพาะระเบียนที่ยังไม่ถูกลบ
+
+#### `fact_crop_monthly`
+
+- `record_id`, `province_code`, `district_code`, `year_be`, `year_ce`
+- `month_no`, `month_th`, `crop_id`
+- `farmer_households`, `planted_area_rai`
+- ฟิลด์ source/status/quality/audit เช่นเดียวกับรายปี
+
+Unique business key: `(district_code, year_be, month_no, crop_id)`
+
+#### Dimension และระบบ
+
+- `dim_district`: รหัสอำเภอ ชื่อไทย ชื่ออังกฤษ ลำดับแสดงผล active
+- `dim_crop`: crop_id ชื่อมาตรฐาน ชื่อแสดง สีประจำพืช icon หน่วย/นิยามผลผลิต active
+- `users`: email, role, active, display_name, created_at
+- `import_jobs`: job_id, file_id, file_name, checksum, status, total_rows, pass_rows, warning_rows, error_rows, created_by, timestamps
+- `audit_log`: audit_id, timestamp, actor_email, action, entity, record_id, before_json, after_json, request_id
+- `settings`: key, value, description
+- `data_versions`: version_id, published_at, published_by, row_count, checksum, notes
+
+ใช้ Google Drive folder แยกเป็น `/raw-imports`, `/validated`, `/rejected`, `/exports`, `/backups` และเก็บ Drive file ID ไม่เก็บ URL ที่คาดเดาเอง
+
+### 5. ETL และ Data Quality
+
+สร้าง import wizard 4 ขั้น:
+
+1. Upload `.xlsx` หรือ `.csv` ไปยัง Drive
+2. Preview และเลือก sheet/mapping
+3. Validate พร้อมแสดง Error/Warning รายแถว
+4. Commit เป็น Draft แล้วให้ Admin Publish
+
+กฎ normalization:
+
+- trim ช่องว่างปกติและ NBSP
+- map ชื่อพืชให้เป็นมาตรฐาน เช่น `ข้าวโพดรุ่น1` และ `ข้าวโพด รุ่น1` เป็น crop_id เดียวกัน
+- แก้ชื่อแสดงผล `กล้อวยไข่` เป็น `กล้วยไข่` โดยเก็บ source_sheet เดิม
+- ignore `คอลัมน์1` แต่บันทึกว่า ignored ใน import report
+- แปลงปี พ.ศ. เป็น ค.ศ. ด้วย `year_ce = year_be - 543`
+- เก็บตัวเลขเป็น numeric ห้ามเก็บ comma-formatted string
+- ห้ามแปลง null เป็น 0
+- คำนวณ `calculated_yield_kg_rai = production_ton * 1000 / harvested_area_rai` เมื่อ harvested area > 0
+- ผลผลิตเฉลี่ยระดับรวมต้องเป็น weighted yield จากผลผลิตรวม/พื้นที่เก็บเกี่ยวรวม ห้ามใช้ค่าเฉลี่ยธรรมดาของผลผลิตต่อไร่รายแถว
+- หากพื้นที่และผลผลิตเป็น 0 ทั้งหมด ให้แยก “ไม่มีการผลิต” ออกจาก “ไม่มีข้อมูล”
+
+Validation:
+
+- Error: key ซ้ำ, year/crop/district ไม่ถูกต้อง, ค่าติดลบ, required field ว่าง, ตัวเลขแปลงไม่ได้
+- Warning ที่ต้อง Admin override พร้อมเหตุผล: harvested area > planted area, ผลผลิตต่อไร่ที่คำนวณต่างจากค่ารายงานเกิน tolerance, outlier สูง/ต่ำผิดปกติ, ปีขาดช่วง
+- Monthly row ที่ค่าตัวเลขหลักว่างทั้งหมดต้อง quarantined และไม่เผยแพร่
+- ตรวจ checksum เพื่อป้องกัน import ไฟล์เดิมซ้ำ
+- Import ต้องเป็น transaction เชิงตรรกะ: ถ้ามี Error ห้ามเขียนข้อมูลบางส่วนโดยไม่แจ้ง
+- รองรับ upsert preview โดยแสดง Insert/Update/Unchanged/Conflict ก่อน commit
+- Delete เป็น soft delete; purge ถาวรเป็นคำสั่งแยกและต้องยืนยันซ้ำ
+- สร้าง backup/version ก่อน publish และรองรับ rollback
+
+### 6. KPI และนิยาม
+
+ตัวกรองทุกตัวต้องมีผลต่อ KPI/กราฟ/ตารางอย่างสอดคล้องกัน:
+
+- พื้นที่เพาะปลูกรวม (ไร่)
+- พื้นที่เก็บเกี่ยวรวม (ไร่)
+- ผลผลิตรวม (ตัน)
+- ผลผลิตเฉลี่ยถ่วงน้ำหนัก (กก./ไร่)
+- อัตราการเก็บเกี่ยว = harvested / planted
+- การเปลี่ยนแปลงเทียบปีก่อนของพื้นที่เพาะปลูก ผลผลิต และ yield
+- สัดส่วนพื้นที่รายพืช
+- อำเภออันดับสูงสุด/ต่ำสุดตาม metric ที่เลือก
+- Data coverage: จำนวนปี อำเภอ พืช ระเบียน และวันที่อัปเดตล่าสุด
+
+กฎ YoY:
+
+- เปรียบเทียบกับปีก่อนภายใต้ crop/district scope เดียวกัน
+- หากไม่มีข้อมูลปีก่อน ให้แสดง “—” ไม่ใช่ 0%
+- ใช้สูตร `(current - previous) / abs(previous) * 100`
+- หาก previous = 0 ให้แสดง N/A พร้อม tooltip อธิบาย
+- ใช้สีเขียว/แดงเมื่อมีความหมายเชิงบวก/ลบจริง และต้องมี icon/text เพื่อไม่พึ่งสีเพียงอย่างเดียว
+
+### 7. หน้าจอสาธารณะ
+
+สร้างอย่างน้อย 6 หน้า:
+
+1. `Overview`: KPI cards, trend รายปี, crop composition, district ranking, key insights
+2. `Crop comparison`: เปรียบเทียบหลายพืชและหลายปี
+3. `District analysis`: เลือกอำเภอ ดูโครงสร้างพืช แนวโน้ม และอันดับ
+4. `Crop detail`: หน้า template เดียวแบบ dynamic สำหรับพืชทั้ง 9 ชนิด แทนการ hard-code 9 หน้า
+5. `Data table`: ตารางค้นหา sort filter pagination export CSV/XLSX
+6. `Methodology & Data quality`: นิยาม สูตร แหล่งข้อมูล data version coverage warning และวันที่ปรับปรุง
+
+ตัวกรอง:
+
+- ปี พ.ศ. แบบ single/multi-select
+- ชนิดพืช
+- อำเภอ
+- metric
+- compare mode
+- ปุ่ม Reset
+- บันทึก filter state ใน URL query parameters เพื่อแชร์ลิงก์ผลวิเคราะห์ได้
+
+กราฟที่ต้องมี:
+
+- Line chart แนวโน้มรายปี
+- Grouped/stacked bar เปรียบเทียบอำเภอหรือชนิดพืช
+- Horizontal ranking bar ที่อ่านชื่ออำเภอภาษาไทยได้ชัด
+- Donut ใช้เฉพาะกรณีหมวดหมู่ไม่มาก; ถ้าอ่านยากให้ใช้ bar/treemap
+- Heatmap ปี × อำเภอ หรือ ปี × พืช
+- แผนที่อำเภอเป็น optional enhancement เฉพาะเมื่อมี GeoJSON ที่ตรวจสอบรหัสอำเภอได้ ห้ามสร้างขอบเขตภูมิศาสตร์ขึ้นเอง
+- ตารางรายละเอียดพร้อม conditional indicator และ tooltip สูตรคำนวณ
+
+เพิ่มระบบ “Insight cards” ที่สร้างจากกฎคำนวณโปร่งใส เช่น ปีที่สูงสุด อำเภอที่เพิ่มขึ้นมากสุด การเปลี่ยนแปลงเด่น โดยห้ามใช้ข้อความที่อ้างเหตุและผลหากข้อมูลมีเพียงความสัมพันธ์
+
+### 8. UX/UI Design System
+
+แนวทางภาพ:
+
+- Professional Thai Government + Modern Agriculture
+- สีหลักเขียวเข้ม/เขียวใบไม้ สีรองทองอ่อน/ดิน และใช้สีเฉพาะพืชอย่างคงที่
+- พื้นหลัง off-white, card สีขาว, shadow บาง, spacing โปร่ง
+- ฟอนต์ `Noto Sans Thai` พร้อม fallback system font
+- KPI card มี label, value, unit, comparison, tooltip และ data freshness
+- ตัวเลขใช้ตัวคั่นหลักพัน ความละเอียดเหมาะสม และหน่วยชัดเจน
+- หลีกเลี่ยง rainbow palette และกราฟ 3D
+- รองรับ light mode เป็นหลัก; dark mode เป็น optional
+- Skeleton loading, empty state, error state และ stale-data banner ต้องสวยและชัด
+
+Accessibility:
+
+- WCAG 2.2 AA
+- contrast อย่างน้อย 4.5:1 สำหรับข้อความปกติ
+- keyboard navigation, focus state, ARIA labels
+- chart มี textual summary และ table fallback
+- responsive breakpoints และ touch target อย่างน้อย 44×44 px
+
+### 9. ระบบ Admin
+
+เส้นทาง `/admin` ต้องมี:
+
+- Google Sign-In
+- Dashboard สถานะข้อมูลและงานนำเข้า
+- CRUD รายการรายปี/รายเดือน
+- bulk edit และ validation
+- import wizard พร้อม downloadable error report
+- Draft review และ Publish
+- soft delete, restore และ archive
+- จัดการ `dim_crop`, `dim_district`, users/roles
+- audit log filter ตามผู้ใช้ เวลา action และ record
+- export current data และ backup
+- optimistic concurrency โดยใช้ `row_version`; หากข้อมูลถูกแก้พร้อมกันให้แสดง conflict
+
+ทุก write request ต้องมี request ID และบันทึก before/after ใน audit log โดย redact token และข้อมูลลับ
+
+### 10. API
+
+ออกแบบ REST API พร้อม OpenAPI 3.1:
+
+Public:
+
+- `GET /api/v1/public/meta`
+- `GET /api/v1/public/filters`
+- `GET /api/v1/public/kpis`
+- `GET /api/v1/public/trends`
+- `GET /api/v1/public/rankings`
+- `GET /api/v1/public/composition`
+- `GET /api/v1/public/records`
+- `GET /api/v1/public/data-quality`
+
+Admin:
+
+- `GET/POST /api/v1/admin/records`
+- `GET/PATCH/DELETE /api/v1/admin/records/:id`
+- `POST /api/v1/admin/imports/preview`
+- `POST /api/v1/admin/imports/:jobId/commit`
+- `POST /api/v1/admin/versions/publish`
+- `POST /api/v1/admin/records/:id/restore`
+- `GET /api/v1/admin/audit`
+- `GET/PATCH /api/v1/admin/users`
+
+ใช้ Zod หรือเทียบเท่าสำหรับ validation, pagination แบบ cursor หรือ page/limit ที่มีเพดาน, standardized error object, ETag/Last-Modified และ cache public GET 5–15 นาที โดย invalidate หลัง publish
+
+### 11. Repository และไฟล์ส่งมอบ
+
+ใช้ monorepo:
+
+```text
+/
+  apps/web/
+  apps/api/
+  packages/shared/
+  data/schema/
+  scripts/import/
+  docs/
+  .github/workflows/
+```
+
+ต้องส่งมอบ:
+
+- source code ที่ build/run ได้จริง
+- `.env.example` โดยไม่มี secret จริง
+- `README.md` ภาษาไทย: setup, local run, Google Cloud setup, Sheets/Drive setup, OAuth setup, deploy, backup/restore
+- `docs/data-dictionary.md`
+- `docs/methodology.md`
+- `docs/architecture.md`
+- `docs/admin-guide.md`
+- `docs/security.md`
+- `openapi.yaml`
+- script สร้าง header/ชีตเริ่มต้น
+- script import Excel เดิม พร้อม profiling/reconciliation report
+- GitHub Actions สำหรับ lint, test, build และ deploy GitHub Pages
+- Cloud Run Dockerfile และคำสั่ง deploy
+- ตัวอย่าง seed data ที่ไม่ใส่ข้อมูลส่วนบุคคล
+
+### 12. Testing และเกณฑ์ตรวจรับ
+
+ทำ unit, integration และ end-to-end tests อย่างน้อย:
+
+- weighted yield
+- YoY edge cases
+- พ.ศ./ค.ศ.
+- crop/district normalization
+- duplicate detection
+- null ไม่ถูกเปลี่ยนเป็น 0
+- harvested > planted warning
+- role permissions
+- unauthenticated write ถูกปฏิเสธ
+- Editor publish/delete ถูกปฏิเสธ
+- Admin CRUD/import/publish/restore สำเร็จ
+- filter ทุกตัวทำให้ KPI/chart/table ตรงกัน
+- URL state เปิดซ้ำแล้วได้ผลเดิม
+- mobile responsive
+
+เกณฑ์ขั้นต่ำ:
+
+- TypeScript strict mode ไม่มี error
+- lint/test/build ผ่าน
+- ไม่มี secret ใน repository หรือ bundle
+- ไม่มี console error ใน production
+- Lighthouse เป้าหมาย: Performance ≥ 85, Accessibility ≥ 95, Best Practices ≥ 95, SEO ≥ 90
+- หน้าแรกโหลดเร็วด้วย code splitting และ lazy load chart
+- กราฟและ KPI reconcile กับ query เดียวกัน
+- ทดสอบตัวอย่างปี 2564 ของข้าวนาปี: พื้นที่เพาะปลูกรวมประมาณ 1,245,585.97 ไร่ พื้นที่เก็บเกี่ยวประมาณ 1,238,017.97 ไร่ และผลผลิต 740,695 ตัน โดยต้องได้จากข้อมูลจริงหลัง import ไม่ hard-code
+
+### 13. วิธีดำเนินงานของคุณ
+
+ทำงานเป็นลำดับและรายงานผลทุกระยะ:
+
+1. ตรวจไฟล์และ Power BI แล้วเขียน Data Profiling + Gap Analysis
+2. สรุป assumption และรายการข้อมูล/สิทธิ์ที่ยังต้องขอ
+3. ออกแบบ data contract, architecture, wireframe และ design tokens
+4. สร้าง backend, import pipeline และ tests
+5. สร้าง frontend และ admin
+6. เชื่อมระบบด้วย environment variables
+7. ทดสอบกับข้อมูลจริงและ reconcile KPI
+8. ทำ security review, accessibility review และ performance review
+9. deploy เฉพาะเมื่อมีสิทธิ์/ค่า config ครบ
+10. ส่ง URL, repository, คู่มือ และรายการข้อจำกัดที่ยังเหลือ
+
+ถามผู้ใช้เฉพาะสิ่งที่จำเป็นต่อการ deploy เช่น:
+
+- GitHub repository/organization และ custom domain (ถ้ามี)
+- Google Cloud project ID และ region
+- Spreadsheet ID และ Drive folder ID หรือสิทธิ์ให้สร้างใหม่
+- OAuth Web Client ID และ authorized origins
+- รายชื่อ email Admin เริ่มต้น
+- หน่วยงาน โลโก้ ข้อความเครดิต และสีองค์กรที่ยืนยันแล้ว
+- GeoJSON อำเภอ หากต้องการแผนที่
+
+ห้ามขอให้ผู้ใช้ส่ง password, private key, OAuth client secret หรือ service-account JSON ผ่านแชต ให้ใช้ Secret Manager/GitHub Environments หรือช่องทางจัดการ secret ที่ปลอดภัยเท่านั้น
+
+หากยังไม่มี credential ให้สร้างโค้ด โครงสร้าง ตัวอย่าง `.env.example`, mock adapter และคู่มือครบถ้วน แล้วระบุสิ่งที่ยัง deploy ไม่ได้อย่างตรงไปตรงมา ห้ามกล่าวว่า “พร้อมใช้งานจริง” หากยังไม่ได้ build, test และตรวจ URL production
+
+### 14. รูปแบบคำตอบสุดท้าย
+
+ตอบเป็นภาษาไทยแบบมืออาชีพและมีหัวข้อ:
+
+1. Executive Summary
+2. Data Profiling & Issues
+3. Architecture
+4. UX/UI และรายการหน้าจอ
+5. Data model/API
+6. Security & Roles
+7. ผลการพัฒนาและการทดสอบ
+8. วิธีติดตั้ง/Deploy
+9. URL และไฟล์ส่งมอบ
+10. Known limitations และ Next steps
+
+ทุกข้อสรุปเชิงข้อมูลต้องอ้างอิงชื่อไฟล์ ชื่อชีต จำนวนแถว หรือสูตรที่ตรวจสอบได้ ห้ามสร้างข้อมูลสมมติแล้วนำเสนอเสมือนเป็นข้อมูลจริง
+
+## END PROMPT
+

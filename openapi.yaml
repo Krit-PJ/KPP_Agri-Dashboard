@@ -1,0 +1,24 @@
+openapi: 3.1.0
+info: {title: KPP Agricultural Dashboard API, version: 0.1.0}
+servers: [{url: https://API_HOST/api/v1}]
+paths:
+  /public/meta:
+    get:
+      responses: {"200": {description: Dataset metadata}}
+  /public/kpis:
+    get:
+      parameters:
+        - {name: year, in: query, schema: {type: integer}}
+        - {name: crop, in: query, schema: {type: string}}
+        - {name: district, in: query, schema: {type: string}}
+      responses: {"200": {description: Aggregated KPI values}}
+  /admin/records:
+    get:
+      security: [{googleIdToken: []}]
+      responses: {"200": {description: Administrative records}, "401": {description: Unauthenticated}, "403": {description: Forbidden}}
+    post:
+      security: [{googleIdToken: []}]
+      responses: {"201": {description: Record created}}
+components:
+  securitySchemes:
+    googleIdToken: {type: http, scheme: bearer, bearerFormat: JWT}
