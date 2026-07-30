@@ -2,6 +2,21 @@
 
 เว็บ Dashboard แบบ responsive สำหรับข้อมูลพืชเศรษฐกิจ 9 ชนิด 11 อำเภอ พัฒนาด้วย React + TypeScript โดยใช้ GitHub Pages เป็น Frontend และ Google Sheets เป็นฐานข้อมูลหลัก
 
+## ความสามารถของ Dashboard
+
+- KPI พื้นที่เพาะปลูก พื้นที่เก็บเกี่ยว ผลผลิต และผลผลิตเฉลี่ยแบบถ่วงน้ำหนัก
+- เปรียบเทียบผลการดำเนินงานกับปีก่อนหน้าอัตโนมัติ
+- ตัวกรองปี ชนิดพืช และอำเภอ พร้อมปุ่มเลือกพืชทั้ง 9 ชนิด
+- กราฟแนวโน้มรายปีที่สลับตัวชี้วัดได้ โดยไม่วางข้อมูลคนละหน่วยบนแกนเดียวกัน
+- กราฟเปรียบเทียบรายอำเภอระหว่างปีที่เลือกกับปีก่อนหน้า
+- กราฟสัดส่วนพื้นที่เพาะปลูกรายพืชหรือรายอำเภอ
+- ตารางสรุปรายปีพร้อมอัตราเปลี่ยนแปลง และตารางรายละเอียดตรวจสอบย้อนกลับ
+- แสดงสถานะคุณภาพข้อมูล แหล่งข้อมูล และเวลาที่ดึงข้อมูลล่าสุด
+
+รูปแบบการวิเคราะห์อ้างอิงองค์ประกอบหลักจาก Power BI รายงานสถานการณ์การเพาะปลูก
+แต่ปรับให้พืชทั้ง 9 ชนิดอยู่ใน Dashboard เดียว ลดการทำซ้ำของหน้ารายงาน และแก้ข้อจำกัด
+ด้านการเปรียบเทียบข้อมูลต่างหน่วย
+
 ## เริ่มใช้งานในเครื่อง
 
 ```bash
@@ -58,11 +73,16 @@ npm run build
 
 ## Deploy บน GitHub Pages
 
-1. สร้าง GitHub repository และ push โค้ดไปยัง branch `main`
-2. เปิด Settings → Pages
-3. เลือก Source เป็น `GitHub Actions`
+1. นำไฟล์ชุดนี้ไปแทนที่ใน repository `Krit-PJ/KPP_Agri-Dashboard`
+2. Commit และ push ไปยัง branch `main`
+3. เปิด Settings → Pages และเลือก Source เป็น `GitHub Actions`
 4. Workflow `.github/workflows/ci-pages.yml` จะทดสอบและ deploy `apps/web/dist`
-5. ตรวจว่า Google Sheet อนุญาต `Anyone with the link: Viewer`
+5. รอให้ Actions งาน `CI and GitHub Pages` ผ่านครบทั้ง `test-build` และ `deploy`
+6. ตรวจว่า Google Sheet อนุญาต `Anyone with the link: Viewer`
+
+เว็บไซต์ production:
+
+`https://krit-pj.github.io/KPP_Agri-Dashboard/`
 
 ไฟล์ JSON ใน `apps/web/public/data` เป็นเพียง snapshot สำรอง ไม่ใช่ฐานข้อมูลหลัก
 
