@@ -23,12 +23,13 @@ flowchart LR
   E --> B
 ```
 
-หน้าเว็บอ่านเฉพาะข้อมูลสาธารณะ ไม่มี service-account key, OAuth secret หรือคำสั่งเขียน การนำเข้า ตรวจสอบ และเผยแพร่ข้อมูลทำใน Google Sheets ผ่าน Container-bound Apps Script ตามสิทธิ์ของเจ้าหน้าที่
+หน้าเว็บอ่านเฉพาะข้อมูลสาธารณะ ไม่มี service-account key, OAuth secret หรือคำสั่งเขียน การเพิ่ม แก้ไข ลบ ตรวจสอบ และสำรองข้อมูลทำใน Google Sheets ผ่าน Container-bound Apps Script ตามสิทธิ์ของเจ้าหน้าที่
 
 ## โครงสร้าง
 
 - `apps/web` Dashboard สาธารณะ
 - `apps/web/src/dataSource.ts` ตัวเชื่อม Google Sheets, parser, cache และ fallback
+- `google-apps-script` ระบบ CRUD หลังบ้าน, Sidebar, validation, backup และ audit
 - `packages/shared` data contract และสูตรคำนวณร่วม
 - `scripts/import` profiling/normalization จาก Excel
 - `data/schema` ผล profiling แบบ machine-readable
@@ -64,3 +65,13 @@ npm run build
 5. ตรวจว่า Google Sheet อนุญาต `Anyone with the link: Viewer`
 
 ไฟล์ JSON ใน `apps/web/public/data` เป็นเพียง snapshot สำรอง ไม่ใช่ฐานข้อมูลหลัก
+
+## ติดตั้งระบบเพิ่ม แก้ไข และลบข้อมูล
+
+โค้ดพร้อมติดตั้งอยู่ใน `google-apps-script` โดยใช้ `Code.gs`, `Sidebar.html` และ
+`appsscript.json` ติดตั้งเป็น Container-bound Apps Script ใน Google Sheet เป้าหมาย
+จากนั้นรัน `installSystem` หนึ่งครั้ง เมนู `ระบบข้อมูลการเกษตร` จะปรากฏเมื่อเปิด Sheet ใหม่
+
+ระบบรองรับข้อมูลรายปีและรายเดือน มีการป้องกัน Business Key ซ้ำ สำรองค่าก่อนแก้ไข/ลบ
+เก็บ Audit Log และสำรองไฟล์ทั้งชุดไปยัง Google Drive ได้ โดยไม่ต้อง Deploy Apps Script
+เป็น Web App

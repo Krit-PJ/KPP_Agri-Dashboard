@@ -7,7 +7,7 @@
     "data:build": "python scripts/import/profile_and_export.py",
     "dev": "npm run dev -w @kpp/web",
     "build": "npm run build -w @kpp/shared && npm run build -w @kpp/web",
-    "test": "npm run test -w @kpp/shared",
+    "test": "npm run test -w @kpp/shared && node scripts/test-apps-script.mjs",
     "typecheck": "npm run build -w @kpp/shared && npm run typecheck -w @kpp/web"
   },
   "engines": {"node": ">=20"}

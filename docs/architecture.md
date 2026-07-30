@@ -7,11 +7,15 @@ Frontend เป็น static SPA บน GitHub Pages และอ่าน `Annu
 1. GitHub Pages: แสดงผล กรอง คำนวณ KPI และทำ visualization
 2. Google Sheets: ฐานข้อมูลหลัก โดย `Annual_Data` เป็น public read model
 3. Google Drive: ไฟล์ต้นทาง สำรอง และเอกสารที่เกี่ยวข้อง
-4. Container-bound Apps Script: นำเข้า ตรวจสอบ ทำสำรอง และจัดการสถานะ
+4. Container-bound Apps Script: เพิ่ม แก้ไข ลบ ตรวจสอบ ทำสำรอง และจัดการสถานะผ่าน Sidebar
 5. Frontend cache: เก็บข้อมูล live ล่าสุดใน browser เพื่อรองรับการเชื่อมต่อสะดุด
 6. Static JSON snapshot: fallback ลำดับสุดท้ายเท่านั้น
 
 Frontend ห้ามเขียนกลับ Google Sheets และห้ามมี secret ใด ๆ ใน repository ข้อมูลที่ไม่ควรเปิดเผยต้องไม่อยู่ใน `Annual_Data` ที่เผยแพร่สาธารณะ
+
+การเขียนข้อมูลใช้ `google-apps-script/Code.gs` ที่ผูกกับ Spreadsheet โดยตรง จึงใช้สิทธิ์
+Google ของเจ้าหน้าที่และไม่เปิด write endpoint สาธารณะ การแก้ไขและลบทุกครั้งมี row backup
+และ audit log ส่วนการลบทั่วไปใช้ soft delete (`record_status=archived`) เป็นค่าเริ่มต้น
 
 ## ลำดับการอ่านข้อมูล
 

@@ -112,7 +112,7 @@ function App(){
         <a href="#records" onClick={()=>setMenuOpen(false)}>ข้อมูล</a>
         <a href="#quality" onClick={()=>setMenuOpen(false)}>คุณภาพข้อมูล</a>
       </nav>
-      <a className="admin-button" href={spreadsheetUrl} target="_blank" rel="noreferrer">สำหรับเจ้าหน้าที่ <span>↗</span></a>
+      <a className="admin-button" href={spreadsheetUrl} target="_blank" rel="noreferrer">จัดการข้อมูล <span>↗</span></a>
     </header>
 
     <main>
