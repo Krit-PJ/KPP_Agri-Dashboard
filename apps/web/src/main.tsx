@@ -7,12 +7,19 @@ import {CanvasRenderer} from "echarts/renderers";
 import {
   calculateCropShares,
   calculateKpis,
+  cropCatalog,
   cropColors,
   toggleYearSelection,
   yoy,
   type Kpis,
 } from "@kpp/shared";
-import {loadDashboardData, spreadsheetUrl, type DashboardData, type DashboardPayload} from "./dataSource";
+import {
+  loadDashboardData,
+  sheetName,
+  spreadsheetUrl,
+  type DashboardData,
+  type DashboardPayload,
+} from "./dataSource";
 import "./styles.css";
 
 use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
@@ -25,19 +32,8 @@ const numberFormat = new Intl.NumberFormat("th-TH", {maximumFractionDigits: 0});
 const decimalFormat = new Intl.NumberFormat("th-TH", {maximumFractionDigits: 1});
 const percentFormat = new Intl.NumberFormat("th-TH", {style: "percent", maximumFractionDigits: 1});
 const dateFormat = new Intl.DateTimeFormat("th-TH", {dateStyle: "medium", timeStyle: "short"});
-const appVersion = "4.1.0";
+const appVersion = "4.2.0";
 const cropPalette = ["#16835e", "#2457c5", "#f2a33a", "#9a62c7", "#e05b72", "#6e7e45", "#d4b22c", "#4f92a6", "#e37d42"];
-const cropCatalog: [string, string][] = [
-  ["rice_offseason", "ข้าวนาปรัง"],
-  ["rice_main", "ข้าวนาปี"],
-  ["maize_1", "ข้าวโพดรุ่น 1"],
-  ["maize_2", "ข้าวโพดรุ่น 2"],
-  ["cassava", "มันสำปะหลัง"],
-  ["oil_palm", "ปาล์มน้ำมัน"],
-  ["rubber", "ยางพารา"],
-  ["sugarcane", "อ้อย"],
-  ["banana_egg", "กล้วยไข่"],
-];
 
 const metricMeta: Record<Metric, {label: string; unit: string}> = {
   planted: {label: "เนื้อที่เพาะปลูก", unit: "ไร่"},
@@ -86,17 +82,27 @@ function App() {
   const [connection, setConnection] = useState<DashboardData | null>(null);
   const [loadError, setLoadError] = useState("");
   const [selectedYears, setSelectedYears] = useState<number[]>([]);
-  const [crop, setCrop] = useState(cropCatalog[0][0]);
+  const [crop, setCrop] = useState<string>(cropCatalog[0][0]);
   const [district, setDistrict] = useState("all");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const refreshData = async () => {
+    setIsRefreshing(true);
+    setLoadError("");
+    try {
+      const result = await loadDashboardData();
+      setConnection(result);
+      setData(result.payload);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "ไม่สามารถโหลดข้อมูลได้");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    loadDashboardData()
-      .then(result => {
-        setConnection(result);
-        setData(result.payload);
-      })
-      .catch(error => setLoadError(error instanceof Error ? error.message : "ไม่สามารถโหลดข้อมูลได้"));
+    void refreshData();
   }, []);
 
   const published = useMemo(
@@ -179,6 +185,9 @@ function App() {
     || district !== "all";
   const warningCount = selectedRecords.filter(record => record.quality_status !== "pass").length;
   const freshness = dateFormat.format(new Date(connection.fetchedAt));
+  const liveConnection = connection.source === "google-sheets";
+  const publishedYears = options.years.slice().sort((a, b) => a - b);
+  const sourceSummary = `${sheetName} · ${numberFormat.format(connection.payload.meta.annual_record_count)} ระเบียน · พ.ศ. ${publishedYears[0]}–${publishedYears.at(-1)}`;
 
   const toggleYear = (year: number) => {
     setSelectedYears(current => toggleYearSelection(current, year));
@@ -284,10 +293,20 @@ function App() {
         </div>
       </section>
 
-      {connection.warning && <aside className="data-warning" role="status">
-        <strong>กำลังใช้ {connection.sourceLabel}</strong><span>{connection.warning}</span>
-        <button onClick={() => window.location.reload()}>เชื่อมต่อใหม่</button>
-      </aside>}
+      <aside className={`data-connection ${liveConnection ? "live" : "fallback"}`} role="status" aria-live="polite">
+        <span className="connection-dot" aria-hidden="true"/>
+        <div className="connection-copy">
+          <strong>{liveConnection ? "เชื่อมต่อข้อมูลสดจาก Google Sheets สำเร็จ" : `กำลังใช้ ${connection.sourceLabel}`}</strong>
+          <span>{sourceSummary} · ตรวจสอบล่าสุด {freshness}</span>
+          {connection.warning && <small>{connection.warning}</small>}
+        </div>
+        <div className="connection-actions">
+          <a href={spreadsheetUrl} target="_blank" rel="noreferrer">เปิด Google Sheet ↗</a>
+          <button type="button" onClick={() => void refreshData()} disabled={isRefreshing}>
+            {isRefreshing ? "กำลังโหลด…" : "โหลดข้อมูลใหม่"}
+          </button>
+        </div>
+      </aside>
 
       <div className="dashboard-layout">
         <aside className="crop-sidebar" aria-label="เลือกชนิดพืช">

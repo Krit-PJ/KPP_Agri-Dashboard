@@ -1,4 +1,11 @@
-import type {CropRecord} from "@kpp/shared";
+import {
+  canonicalCropName,
+  cropCatalog,
+  normalizeCropId,
+  normalizeDataStatus,
+  normalizeQualityStatus,
+  type CropRecord,
+} from "@kpp/shared";
 
 export type DashboardPayload = {
   meta: {
@@ -21,14 +28,14 @@ export type DashboardData = {
 
 const DEFAULT_SHEET_ID = "1lxQ5rS9xHTq_LlFTSQehsJSk-lTk4HzhlS8hq_0t47U";
 const DEFAULT_SHEET_NAME = "Annual_Data";
-const CACHE_KEY = "kpp-dashboard:annual-data:v2";
+const CACHE_KEY = "kpp-dashboard:annual-data:v3";
 const REQUEST_TIMEOUT_MS = 15_000;
 
 export const sheetId = import.meta.env.VITE_GOOGLE_SHEET_ID?.trim() || DEFAULT_SHEET_ID;
 export const sheetName = import.meta.env.VITE_GOOGLE_SHEET_TAB?.trim() || DEFAULT_SHEET_NAME;
 export const spreadsheetUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/edit`;
 
-const csvUrl = () => {
+export const csvUrl = () => {
   const query = new URLSearchParams({
     tqx: "out:csv",
     sheet: sheetName,
@@ -83,7 +90,7 @@ const asNumber = (value: string | undefined): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-function recordsFromCsv(csv: string): CropRecord[] {
+export function recordsFromCsv(csv: string): CropRecord[] {
   const rows = parseCsv(csv);
   const headers = (rows.shift() ?? []).map((value, index) =>
     index === 0 ? value.replace(/^\uFEFF/, "").trim() : value.trim(),
@@ -107,13 +114,17 @@ function recordsFromCsv(csv: string): CropRecord[] {
   }
 
   const at = (row: string[], key: string) => row[headers.indexOf(key)]?.trim() ?? "";
-  return rows.flatMap(row => {
+  const records = rows.flatMap((row, rowIndex) => {
     const recordId = at(row, "record_id");
     const yearBe = asNumber(at(row, "year_be"));
     if (!recordId || yearBe === null) return [];
 
-    const qualityValue = at(row, "quality_status").toLowerCase();
-    const recordValue = at(row, "record_status").toLowerCase();
+    const sheetCropCode = at(row, "crop_code");
+    const sheetCropName = at(row, "crop_name");
+    const cropId = normalizeCropId(sheetCropCode, sheetCropName);
+    if (!cropId) {
+      throw new Error(`ไม่รู้จักรหัสพืช "${sheetCropCode}" แถวที่ ${rowIndex + 2}`);
+    }
     const note = at(row, "quality_note");
     const sourceRow = asNumber(at(row, "source_row"));
 
@@ -123,20 +134,29 @@ function recordsFromCsv(csv: string): CropRecord[] {
       district_name: at(row, "district_name"),
       year_be: yearBe,
       year_ce: asNumber(at(row, "year_ce")) ?? yearBe - 543,
-      crop_id: at(row, "crop_code"),
-      crop_name: at(row, "crop_name"),
+      crop_id: cropId,
+      crop_name: canonicalCropName(cropId),
       planted_area_rai: asNumber(at(row, "planted_area_rai")),
       harvested_area_rai: asNumber(at(row, "harvested_area_rai")),
       production_ton: asNumber(at(row, "production_ton")),
       calculated_yield_kg_rai: asNumber(at(row, "calculated_yield_harvested_kg_per_rai")),
-      quality_status: qualityValue === "warning" ? "warning" : qualityValue === "error" ? "error" : "pass",
+      quality_status: normalizeQualityStatus(at(row, "quality_status")),
       quality_notes: note ? note.split(";").map(item => item.trim()).filter(Boolean) : [],
-      data_status: recordValue === "archived" ? "archived" : recordValue === "draft" ? "draft" : "published",
+      data_status: normalizeDataStatus(at(row, "record_status")),
       source_sheet: at(row, "source_sheet"),
       source_row: sourceRow ?? 0,
     };
     return [record];
   });
+
+  const publishedCropIds = new Set(
+    records.filter(record => record.data_status === "published").map(record => record.crop_id),
+  );
+  const missingCrops = cropCatalog.filter(([cropId]) => !publishedCropIds.has(cropId));
+  if (missingCrops.length) {
+    throw new Error(`Google Sheet ไม่มีข้อมูลเผยแพร่สำหรับ: ${missingCrops.map(([, name]) => name).join(", ")}`);
+  }
+  return records;
 }
 
 function createPayload(records: CropRecord[], generatedAt = new Date().toISOString()): DashboardPayload {
@@ -157,7 +177,12 @@ function createPayload(records: CropRecord[], generatedAt = new Date().toISOStri
 function readCache(): DashboardPayload | null {
   try {
     const cached = localStorage.getItem(CACHE_KEY);
-    return cached ? JSON.parse(cached) as DashboardPayload : null;
+    const payload = cached ? JSON.parse(cached) as DashboardPayload : null;
+    if (!payload?.records.length) return null;
+    const validIds = new Set(cropCatalog.map(([cropId]) => cropId));
+    return payload.records.every(record => validIds.has(record.crop_id as typeof cropCatalog[number][0]))
+      ? payload
+      : null;
   } catch {
     return null;
   }

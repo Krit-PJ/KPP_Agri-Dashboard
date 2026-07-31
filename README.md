@@ -27,6 +27,14 @@ npm run dev
 
 Dashboard จะอ่านข้อมูลล่าสุดจากชีต `Annual_Data` โดยตรง หาก Google Sheets ไม่พร้อมชั่วคราว ระบบจะใช้ข้อมูล live ล่าสุดที่บันทึกไว้ในอุปกรณ์ และใช้ JSON snapshot เป็น fallback ลำดับสุดท้าย
 
+### Dashboard รุ่น 4.2
+
+- แก้ Data Contract ระหว่าง Google Sheets (`C01`–`C09`) กับรหัสภายในของ Dashboard
+- แปลงสถานะ `active/valid` จากชีตเป็น `published/pass` อย่างชัดเจน
+- ป้องกันการนำ cache รุ่นเก่าที่มีรหัสพืชผิดกลับมาใช้งาน
+- แสดงสถานะการเชื่อมต่อข้อมูลสด ชื่อแท็บ จำนวนระเบียน ช่วงปี และเวลาตรวจสอบ
+- เพิ่มปุ่มโหลดข้อมูลใหม่โดยไม่ต้องรีเฟรชหน้าและคำสั่ง `npm run data:audit`
+
 ### Dashboard รุ่น 4.1
 
 - Card ตัวกรองปี พ.ศ. แบบเลือกหนึ่งปี หลายปี หรือปีที่ไม่ต่อเนื่อง
@@ -81,6 +89,7 @@ VITE_GOOGLE_SHEET_TAB=Annual_Data
 ```bash
 npm run typecheck
 npm test
+npm run data:audit
 npm run build
 ```
 

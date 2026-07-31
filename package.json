@@ -1,10 +1,11 @@
 {
   "name": "kpp-agricultural-dashboard",
   "private": true,
-  "version": "4.1.0",
+  "version": "4.2.0",
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "data:build": "python scripts/import/profile_and_export.py",
+    "data:audit": "npm run build -w @kpp/shared && node scripts/audit-google-sheet.mjs",
     "dev": "npm run dev -w @kpp/web",
     "build": "npm run build -w @kpp/shared && npm run build -w @kpp/web",
     "test": "npm run test -w @kpp/shared && node scripts/test-apps-script.mjs",

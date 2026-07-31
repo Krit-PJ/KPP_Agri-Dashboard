@@ -18,6 +18,70 @@ export type CropShare = {
   percent: number | null;
 };
 
+export const cropCatalog = [
+  ["rice_offseason", "ข้าวนาปรัง"],
+  ["rice_main", "ข้าวนาปี"],
+  ["maize_1", "ข้าวโพดรุ่น 1"],
+  ["maize_2", "ข้าวโพดรุ่น 2"],
+  ["cassava", "มันสำปะหลัง"],
+  ["oil_palm", "ปาล์มน้ำมัน"],
+  ["rubber", "ยางพารา"],
+  ["sugarcane", "อ้อย"],
+  ["banana_egg", "กล้วยไข่"],
+] as const;
+
+export type CropId = typeof cropCatalog[number][0];
+
+const cropIdBySheetCode: Record<string, CropId> = {
+  C01: "rice_offseason",
+  C02: "rice_main",
+  C03: "maize_1",
+  C04: "maize_2",
+  C05: "cassava",
+  C06: "oil_palm",
+  C07: "rubber",
+  C08: "sugarcane",
+  C09: "banana_egg",
+};
+
+const cropIdByName: Record<string, CropId> = {
+  ข้าวนาปรัง: "rice_offseason",
+  ข้าวนาปี: "rice_main",
+  ข้าวโพดรุ่น1: "maize_1",
+  ข้าวโพดรุ่น2: "maize_2",
+  มันสำปะหลัง: "cassava",
+  ปาล์มน้ำมัน: "oil_palm",
+  ยางพารา: "rubber",
+  อ้อย: "sugarcane",
+  กล้วยไข่: "banana_egg",
+};
+
+const compactText = (value: string) => value.trim().replace(/\s+/g, "");
+
+export function normalizeCropId(sheetCode: string, cropName = ""): CropId | null {
+  const code = sheetCode.trim();
+  if (cropCatalog.some(([cropId]) => cropId === code)) return code as CropId;
+  return cropIdBySheetCode[code.toUpperCase()] ?? cropIdByName[compactText(cropName)] ?? null;
+}
+
+export function canonicalCropName(cropId: CropId): string {
+  return cropCatalog.find(([id]) => id === cropId)?.[1] ?? cropId;
+}
+
+export function normalizeQualityStatus(value: string): CropRecord["quality_status"] {
+  const status = value.trim().toLowerCase();
+  if (["warning", "warn", "คำเตือน"].includes(status)) return "warning";
+  if (["error", "invalid", "fail", "ไม่ผ่าน"].includes(status)) return "error";
+  return "pass";
+}
+
+export function normalizeDataStatus(value: string): CropRecord["data_status"] {
+  const status = value.trim().toLowerCase();
+  if (["active", "published", "เผยแพร่"].includes(status)) return "published";
+  if (["archived", "inactive", "deleted", "ยกเลิก"].includes(status)) return "archived";
+  return "draft";
+}
+
 export function calculateKpis(records: CropRecord[]): Kpis {
   const sum = (key: "planted_area_rai" | "harvested_area_rai" | "production_ton") =>
     records.reduce((total, row) => total + (row[key] ?? 0), 0);

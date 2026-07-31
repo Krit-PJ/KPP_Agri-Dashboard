@@ -90,11 +90,28 @@ main {max-width: 1540px; margin: auto; padding: 24px clamp(18px, 3.2vw, 54px) 70
   background: #f1d277; padding: 7px 11px; font-size: 9px; font-weight: 700; cursor: pointer;
 }
 .filter-meta button:disabled {opacity: .4; cursor: not-allowed}
-.data-warning {
-  margin: 12px 0 0; padding: 11px 14px; border: 1px solid #ead69c; border-radius: 11px;
-  background: #fff8e5; color: #725616; display: flex; align-items: center; gap: 10px; font-size: 10px;
+.data-connection {
+  margin: 12px 0 0; padding: 12px 14px; border: 1px solid #cfe1d6; border-radius: 12px;
+  background: #f5fbf7; color: #28503e; display: flex; align-items: center; gap: 11px; font-size: 10px;
 }
-.data-warning button {margin-left: auto; border: 1px solid #d6b75d; border-radius: 7px; background: #fff; color: #725616; padding: 6px 10px; cursor: pointer}
+.data-connection.fallback {border-color: #ead69c; background: #fff8e5; color: #725616}
+.connection-dot {
+  width: 10px; height: 10px; border-radius: 50%; background: #1c9b68; flex: 0 0 auto;
+  box-shadow: 0 0 0 4px #1c9b6818;
+}
+.data-connection.fallback .connection-dot {background: #d29a20; box-shadow: 0 0 0 4px #d29a2018}
+.connection-copy {display: flex; flex-direction: column; min-width: 0}
+.connection-copy strong {font-size: 10px}
+.connection-copy span {color: #668174; font-size: 9px}
+.connection-copy small {color: #8a681d; font-size: 9px; margin-top: 2px}
+.connection-actions {margin-left: auto; display: flex; align-items: center; gap: 7px; white-space: nowrap}
+.connection-actions a, .connection-actions button {
+  border: 1px solid #bdd4c6; border-radius: 7px; background: #fff; color: #28503e;
+  padding: 6px 9px; cursor: pointer; font: inherit; font-weight: 600; text-decoration: none;
+}
+.data-connection.fallback .connection-actions a,
+.data-connection.fallback .connection-actions button {border-color: #d6b75d; color: #725616}
+.connection-actions button:disabled {opacity: .55; cursor: wait}
 
 .dashboard-layout {display: grid; grid-template-columns: 205px minmax(0, 1fr); gap: 18px; align-items: start; margin-top: 22px}
 .crop-sidebar {
@@ -218,8 +235,8 @@ footer {background: var(--green-dark); color: #b8ccc3; padding: 25px clamp(20px,
   .year-options button {min-width: 0}
   .filter-meta {align-items: flex-start; flex-wrap: wrap; gap: 7px 14px}
   .filter-meta button {width: 100%; margin: 5px 0 0}
-  .data-warning {align-items: flex-start; flex-wrap: wrap}
-  .data-warning button {margin-left: 0}
+  .data-connection {align-items: flex-start; flex-wrap: wrap}
+  .connection-actions {width: 100%; margin-left: 21px}
   .kpis {grid-template-columns: 1fr}
   .section-title, .panel-title {flex-direction: column}
   .panel {padding: 15px}
