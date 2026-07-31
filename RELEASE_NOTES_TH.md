@@ -87,3 +87,12 @@ Google Apps Script ใน `google-apps-script` ยังคงใช้กับ
 - เพิ่มส่วนเข้าสู่ Admin Data Manager บน Dashboard
 - ปรับ Admin เป็นรุ่น 1.1.0 พร้อมสรุปจำนวนระเบียนและตัวกรองสถานะ
 - คงระบบ CRUD, validation, duplicate protection, soft delete, restore, backup และ audit
+
+## รุ่น 4.4.1 — Resilient Startup & Sticky Year Filter
+
+- เปลี่ยนการเริ่มต้นหน้าเว็บให้แสดง Dashboard จาก snapshot ที่ฝังใน JavaScript bundle ทันที ก่อนอัปเดตข้อมูลสดจาก Google Sheets เบื้องหลัง
+- ตัดการพึ่งพา path ของไฟล์ JSON ขณะเริ่มระบบ จึงไม่เกิดหน้าว่างเมื่อ deploy ใต้ GitHub Pages repository path
+- หากข้อมูลสดล้มเหลว ระบบยังคงใช้งาน Dashboard ได้และแสดงสาเหตุพร้อมปุ่มโหลดข้อมูลใหม่
+- ตรึงส่วนเลือกปี พ.ศ. ไว้ใต้เมนูหลักบน Desktop และ Mobile โดยไม่บังเนื้อหา
+- เพิ่ม automated validation สำหรับ snapshot 792 ระเบียน พ.ศ. 2556–2566 ครบ 9 พืชและ 11 อำเภอ
+- ยืนยันว่าเว็บไซต์ Production เดิมยังเป็น `v4.4.0`; ต้อง deploy รุ่นนี้จึงจะได้รับการแก้ไข

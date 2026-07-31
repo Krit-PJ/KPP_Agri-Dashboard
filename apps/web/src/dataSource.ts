@@ -6,6 +6,7 @@ import {
   normalizeQualityStatus,
   type CropRecord,
 } from "@kpp/shared";
+import bundledSnapshotJson from "../public/data/crop-annual.json";
 
 export type DashboardPayload = {
   meta: {
@@ -30,6 +31,10 @@ const DEFAULT_SHEET_ID = "1lxQ5rS9xHTq_LlFTSQehsJSk-lTk4HzhlS8hq_0t47U";
 const DEFAULT_SHEET_NAME = "Annual_Data";
 const CACHE_KEY = "kpp-dashboard:annual-data:v3";
 const REQUEST_TIMEOUT_MS = 15_000;
+
+// Bundle the verified snapshot with the app so rendering does not depend on a
+// hosting path, Google Sheets availability, or browser storage.
+export const bundledSnapshot = bundledSnapshotJson as DashboardPayload;
 
 export const sheetId = import.meta.env.VITE_GOOGLE_SHEET_ID?.trim() || DEFAULT_SHEET_ID;
 export const sheetName = import.meta.env.VITE_GOOGLE_SHEET_TAB?.trim() || DEFAULT_SHEET_NAME;
@@ -197,9 +202,7 @@ function writeCache(payload: DashboardPayload) {
 }
 
 async function loadSnapshot(): Promise<DashboardPayload> {
-  const response = await fetch(`${import.meta.env.BASE_URL}data/crop-annual.json`);
-  if (!response.ok) throw new Error(`ไม่สามารถโหลดชุดข้อมูลสำรอง (${response.status})`);
-  return response.json() as Promise<DashboardPayload>;
+  return bundledSnapshot;
 }
 
 export async function loadDashboardData(): Promise<DashboardData> {

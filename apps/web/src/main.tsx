@@ -16,6 +16,7 @@ import {
   type Kpis,
 } from "@kpp/shared";
 import {
+  bundledSnapshot,
   loadDashboardData,
   sheetName,
   spreadsheetUrl,
@@ -34,7 +35,7 @@ const numberFormat = new Intl.NumberFormat("th-TH", {maximumFractionDigits: 0});
 const decimalFormat = new Intl.NumberFormat("th-TH", {maximumFractionDigits: 1});
 const percentFormat = new Intl.NumberFormat("th-TH", {style: "percent", maximumFractionDigits: 1});
 const dateFormat = new Intl.DateTimeFormat("th-TH", {dateStyle: "medium", timeStyle: "short"});
-const appVersion = "4.4.0";
+const appVersion = "4.4.1";
 const cropPalette = ["#16835e", "#2457c5", "#f2a33a", "#9a62c7", "#e05b72", "#6e7e45", "#d4b22c", "#4f92a6", "#e37d42"];
 const yearPalette = ["#16835e", "#2457c5", "#e7a124", "#9a62c7", "#df5c73", "#34889b", "#8d7039", "#5a7d3c", "#d6743f", "#5571a7", "#9c5678"];
 type FontSize = "normal" | "large" | "xlarge";
@@ -108,8 +109,14 @@ function ChangeValue({value}: {value: number | null}) {
 }
 
 function App() {
-  const [data, setData] = useState<Payload | null>(null);
-  const [connection, setConnection] = useState<DashboardData | null>(null);
+  const [data, setData] = useState<Payload>(bundledSnapshot);
+  const [connection, setConnection] = useState<DashboardData>({
+    payload: bundledSnapshot,
+    source: "snapshot",
+    sourceLabel: "ชุดข้อมูลสำรอง",
+    fetchedAt: bundledSnapshot.meta.generated_at,
+    warning: "กำลังตรวจสอบข้อมูลล่าสุดจาก Google Sheets",
+  });
   const [loadError, setLoadError] = useState("");
   const [selectedYears, setSelectedYears] = useState<number[]>([]);
   const [crop, setCrop] = useState<string>(cropCatalog[0][0]);
@@ -118,13 +125,21 @@ function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [chartSelectionNotice, setChartSelectionNotice] = useState("");
   const [fontSize, setFontSize] = useState<FontSize>(() => {
-    const saved = window.localStorage.getItem("kpp-font-size");
-    return saved === "large" || saved === "xlarge" ? saved : "normal";
+    try {
+      const saved = window.localStorage.getItem("kpp-font-size");
+      return saved === "large" || saved === "xlarge" ? saved : "normal";
+    } catch {
+      return "normal";
+    }
   });
 
   useEffect(() => {
     document.documentElement.dataset.fontSize = fontSize;
-    window.localStorage.setItem("kpp-font-size", fontSize);
+    try {
+      window.localStorage.setItem("kpp-font-size", fontSize);
+    } catch {
+      // Controls remain usable for this session if storage is unavailable.
+    }
   }, [fontSize]);
 
   const refreshData = async () => {
@@ -135,7 +150,12 @@ function App() {
       setConnection(result);
       setData(result.payload);
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "ไม่สามารถโหลดข้อมูลได้");
+      const message = error instanceof Error ? error.message : "ไม่สามารถโหลดข้อมูลได้";
+      setLoadError(message);
+      setConnection(current => ({
+        ...current,
+        warning: `โหลดข้อมูลล่าสุดไม่สำเร็จ: ${message}`,
+      }));
     } finally {
       setIsRefreshing(false);
     }
@@ -228,12 +248,8 @@ function App() {
     };
   }), [selectedYearsAscending, published, district, options, crop]);
 
-  if (loadError) return <main className="loading error-state">
-    <strong>ไม่สามารถเปิด Dashboard ได้</strong><p>{loadError}</p>
-    <button onClick={() => window.location.reload()}>ลองใหม่</button>
-  </main>;
-  if (!data || !options || !connection || selectedYears.length === 0) return <main className="loading">
-    <span className="loader"/><p>กำลังเชื่อมต่อ Google Sheets…</p>
+  if (!options || selectedYears.length === 0) return <main className="loading">
+    <span className="loader"/><p>กำลังเตรียม Dashboard…</p>
   </main>;
 
   const selectedCrop = options.crops.find(([id]) => id === crop)?.[1] ?? cropCatalog[0][1];
@@ -403,7 +419,7 @@ function App() {
         <div className="connection-copy">
           <strong>{liveConnection ? "เชื่อมต่อข้อมูลสดจาก Google Sheets สำเร็จ" : `กำลังใช้ ${connection.sourceLabel}`}</strong>
           <span>{sourceSummary} · ตรวจสอบล่าสุด {freshness}</span>
-          {connection.warning && <small>{connection.warning}</small>}
+          {(connection.warning || loadError) && <small>{connection.warning || loadError}</small>}
         </div>
         <div className="connection-actions">
           <a href={spreadsheetUrl} target="_blank" rel="noreferrer">เปิด Google Sheet ↗</a>
