@@ -24,6 +24,11 @@ assert.equal(
   context.businessKey_("annual", {year_be: 2567, crop_code: "C01", district_code: "D01"}),
   "2567|C01|D01",
 );
+assert.deepEqual(
+  JSON.parse(JSON.stringify(context.summarizeStatuses_(["active", "active", "draft", "archived", "unexpected"]))),
+  {total: 5, active: 2, draft: 1, archived: 1},
+);
+assert.match(source, /VERSION: '1\.1\.0'/);
 assert.equal(
   context.businessKey_("monthly", {year_be: 2567, crop_code: "C01", district_code: "D01", month_number: 2}),
   "2567|C01|D01|2",

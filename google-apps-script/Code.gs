@@ -10,7 +10,7 @@
  */
 
 const KPP = Object.freeze({
-  VERSION: '1.0.0',
+  VERSION: '1.1.0',
   PROVINCE: 'กำแพงเพชร',
   SHEETS: Object.freeze({
     annual: 'Annual_Data',
@@ -88,6 +88,15 @@ function getBootstrap() {
     districts: readDimension_(KPP.SHEETS.districts, 'district_code', 'district_name'),
     months: KPP.MONTHS.map((name, index) => ({code: index + 1, name: name})),
     statuses: KPP.STATUS.slice(),
+    summary: getSystemSummary(),
+  };
+}
+
+function getSystemSummary() {
+  assertProductionWorkbook_();
+  return {
+    annual: summarizeSheet_('annual'),
+    monthly: summarizeSheet_('monthly'),
   };
 }
 
@@ -98,6 +107,8 @@ function listRecords(request) {
   const page = Math.max(1, Number(input.page) || 1);
   const pageSize = Math.min(100, Math.max(10, Number(input.pageSize) || 25));
   const search = String(input.search || '').trim().toLowerCase();
+  const status = cleanText_(input.status).toLowerCase();
+  if (status && KPP.STATUS.indexOf(status) === -1) throw new Error('ตัวกรองสถานะไม่ถูกต้อง');
   const sheet = getDataSheet_(type);
   const headers = getHeaders_(sheet);
   const idHeader = type === 'annual' ? 'record_id' : 'monthly_record_id';
@@ -111,6 +122,7 @@ function listRecords(request) {
     return data;
   }).filter(function(record) {
     if (!record[idHeader]) return false;
+    if (status && cleanText_(record.record_status).toLowerCase() !== status) return false;
     if (!search) return true;
     return [
       record[idHeader], record.district_name, record.crop_name, record.year_be,
@@ -130,6 +142,30 @@ function listRecords(request) {
     page: safePage,
     pageSize: pageSize,
   };
+}
+
+function summarizeSheet_(type) {
+  const sheet = getDataSheet_(type);
+  const headers = getHeaders_(sheet);
+  const statusColumn = headers.indexOf('record_status');
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return summarizeStatuses_([]);
+  const values = sheet.getRange(2, 1, lastRow - 1, headers.length).getDisplayValues();
+  return summarizeStatuses_(values.filter(function(row) {
+    return row[0];
+  }).map(function(row) {
+    return row[statusColumn];
+  }));
+}
+
+function summarizeStatuses_(statuses) {
+  const summary = {total: 0, active: 0, draft: 0, archived: 0};
+  (statuses || []).forEach(function(value) {
+    summary.total += 1;
+    const status = cleanText_(value).toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(summary, status)) summary[status] += 1;
+  });
+  return summary;
 }
 
 function getRecord(request) {

@@ -79,3 +79,11 @@ Google Apps Script ใน `google-apps-script` ยังคงใช้กับ
 - ขยายตัวอักษรในกราฟตามค่าที่ผู้ใช้เลือก และทำให้กราฟ 11 อำเภอบนมือถือเลื่อนแนวนอนได้
 - เพิ่ม unit test การรวมข้อมูลรายอำเภอแยกตามปี รวมเป็น 8 รายการ
 - เพิ่ม `docs/requirement-traceability-v4.3.md` สำหรับตรวจสอบข้อกำหนดและผลทดสอบรุ่นนี้
+# KPP Agri Dashboard v4.4.0
+
+- ปรับเครื่องมือขนาดตัวอักษรเป็น `ก / ก+ / ก++`
+- คลิกแท่ง Bar chart เพื่อเลือกและ Active ข้อมูลเฉพาะปีนั้นทั้ง Dashboard
+- เพิ่มปุ่มปีใต้กราฟสำหรับคีย์บอร์ดและอุปกรณ์สัมผัส
+- เพิ่มส่วนเข้าสู่ Admin Data Manager บน Dashboard
+- ปรับ Admin เป็นรุ่น 1.1.0 พร้อมสรุปจำนวนระเบียนและตัวกรองสถานะ
+- คงระบบ CRUD, validation, duplicate protection, soft delete, restore, backup และ audit

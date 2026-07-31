@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useRef, useState} from "react";
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {createRoot} from "react-dom/client";
 import {init, use, type EChartsCoreOption} from "echarts/core";
 import {BarChart, PieChart} from "echarts/charts";
@@ -10,6 +10,7 @@ import {
   calculateKpis,
   cropCatalog,
   cropColors,
+  selectYearFromChart,
   toggleYearSelection,
   yoy,
   type Kpis,
@@ -33,10 +34,10 @@ const numberFormat = new Intl.NumberFormat("th-TH", {maximumFractionDigits: 0});
 const decimalFormat = new Intl.NumberFormat("th-TH", {maximumFractionDigits: 1});
 const percentFormat = new Intl.NumberFormat("th-TH", {style: "percent", maximumFractionDigits: 1});
 const dateFormat = new Intl.DateTimeFormat("th-TH", {dateStyle: "medium", timeStyle: "short"});
-const appVersion = "4.3.0";
+const appVersion = "4.4.0";
 const cropPalette = ["#16835e", "#2457c5", "#f2a33a", "#9a62c7", "#e05b72", "#6e7e45", "#d4b22c", "#4f92a6", "#e37d42"];
 const yearPalette = ["#16835e", "#2457c5", "#e7a124", "#9a62c7", "#df5c73", "#34889b", "#8d7039", "#5a7d3c", "#d6743f", "#5571a7", "#9c5678"];
-type FontSize = "small" | "normal" | "large";
+type FontSize = "normal" | "large" | "xlarge";
 
 const metricMeta: Record<Metric, {label: string; unit: string}> = {
   planted: {label: "เนื้อที่เพาะปลูก", unit: "ไร่"},
@@ -50,19 +51,32 @@ const compactNumber = (value: number) => value >= 1_000_000
   ? `${decimalFormat.format(value / 1_000_000)}M`
   : value >= 1_000 ? `${decimalFormat.format(value / 1_000)}K` : numberFormat.format(value);
 
-function Chart({option, label, className = ""}: {option: EChartsCoreOption; label: string; className?: string}) {
+function Chart({option, label, className = "", onBarYearSelect}: {
+  option: EChartsCoreOption;
+  label: string;
+  className?: string;
+  onBarYearSelect?: (year: number) => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!ref.current) return;
     const chart = init(ref.current);
     chart.setOption(option);
+    if (onBarYearSelect) {
+      chart.on("click", params => {
+        if (params.seriesType !== "bar") return;
+        const year = Number(params.seriesId);
+        if (Number.isInteger(year)) onBarYearSelect(year);
+      });
+      chart.getZr().setCursorStyle("pointer");
+    }
     const observer = new ResizeObserver(() => chart.resize());
     observer.observe(ref.current);
     return () => {
       observer.disconnect();
       chart.dispose();
     };
-  }, [option]);
+  }, [onBarYearSelect, option]);
   return <div ref={ref} className={`chart ${className}`} role="img" aria-label={label}/>;
 }
 
@@ -102,9 +116,10 @@ function App() {
   const [district, setDistrict] = useState("all");
   const [menuOpen, setMenuOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [chartSelectionNotice, setChartSelectionNotice] = useState("");
   const [fontSize, setFontSize] = useState<FontSize>(() => {
     const saved = window.localStorage.getItem("kpp-font-size");
-    return saved === "small" || saved === "large" ? saved : "normal";
+    return saved === "large" || saved === "xlarge" ? saved : "normal";
   });
 
   useEffect(() => {
@@ -238,11 +253,17 @@ function App() {
 
   const toggleYear = (year: number) => {
     setSelectedYears(current => toggleYearSelection(current, year));
+    setChartSelectionNotice("");
   };
+  const activateYearFromChart = useCallback((year: number) => {
+    setSelectedYears(selectYearFromChart(year));
+    setChartSelectionNotice(`กำลังแสดงข้อมูลเฉพาะ พ.ศ. ${year} จากการเลือกบนกราฟ`);
+  }, []);
   const reset = () => {
     setSelectedYears(options.years.slice(0, 1));
     setCrop(cropCatalog[0][0]);
     setDistrict("all");
+    setChartSelectionNotice("");
   };
 
   const commonAxis = {
@@ -250,7 +271,7 @@ function App() {
     axisLabel: {color: "#68766e"},
     axisTick: {show: false},
   };
-  const chartFontScale = fontSize === "small" ? .9 : fontSize === "large" ? 1.15 : 1;
+  const chartFontScale = fontSize === "xlarge" ? 1.3 : fontSize === "large" ? 1.15 : 1;
   const createDistrictBarOption = (
     seriesByYear: typeof plantedByDistrictYear,
     unit: "ไร่" | "ตัน",
@@ -299,6 +320,7 @@ function App() {
       },
     },
     series: seriesByYear.map((item, index) => ({
+      id: String(item.year),
       name: `พ.ศ. ${item.year}`,
       type: "bar",
       barMaxWidth: selectedYearsAscending.length === 1 ? 48 : 30,
@@ -307,6 +329,15 @@ function App() {
       itemStyle: {
         color: yearPalette[index % yearPalette.length],
         borderRadius: [5, 5, 0, 0],
+      },
+      emphasis: {
+        focus: "series",
+        itemStyle: {
+          shadowBlur: 10,
+          shadowColor: "rgba(18, 63, 50, .28)",
+          borderColor: "#123f32",
+          borderWidth: 2,
+        },
       },
     })),
   });
@@ -318,9 +349,9 @@ function App() {
       <span>การแสดงผล</span>
       <div className="font-controls" role="group" aria-label="ปรับขนาดตัวอักษร">
         <span className="font-label">ขนาดตัวอักษร</span>
-        <button type="button" className={fontSize === "small" ? "active" : ""} aria-pressed={fontSize === "small"} onClick={() => setFontSize("small")} title="ตัวอักษรขนาดเล็ก">ก−</button>
         <button type="button" className={fontSize === "normal" ? "active" : ""} aria-pressed={fontSize === "normal"} onClick={() => setFontSize("normal")} title="ตัวอักษรขนาดมาตรฐาน">ก</button>
         <button type="button" className={fontSize === "large" ? "active" : ""} aria-pressed={fontSize === "large"} onClick={() => setFontSize("large")} title="ตัวอักษรขนาดใหญ่">ก+</button>
+        <button type="button" className={fontSize === "xlarge" ? "active" : ""} aria-pressed={fontSize === "xlarge"} onClick={() => setFontSize("xlarge")} title="ตัวอักษรขนาดใหญ่มาก">ก++</button>
       </div>
     </section>
     <header className="topbar">
@@ -333,8 +364,9 @@ function App() {
         <a className="active" href="#overview" onClick={() => setMenuOpen(false)}>สถานการณ์</a>
         <a href="#charts" onClick={() => setMenuOpen(false)}>กราฟ</a>
         <a href="#summary" onClick={() => setMenuOpen(false)}>ตารางข้อมูล</a>
+        <a href="#admin" onClick={() => setMenuOpen(false)}>Admin</a>
       </nav>
-      <a className="admin-button" href={spreadsheetUrl} target="_blank" rel="noreferrer">จัดการข้อมูล <span>↗</span></a>
+      <a className="admin-button" href={spreadsheetUrl} target="_blank" rel="noreferrer">เข้าสู่ระบบ Admin <span>↗</span></a>
     </header>
 
     <main id="overview">
@@ -414,13 +446,20 @@ function App() {
           </section>
 
           <section className="chart-grid" id="charts">
+            <p className="chart-interaction-note" aria-live="polite">
+              <strong>{chartSelectionNotice || "เลือกข้อมูลจากกราฟได้"}</strong>
+              <span>คลิกแท่งหรือปุ่มปีใต้กราฟ เพื่อ Active และแสดงข้อมูลเฉพาะปีนั้นทั้ง Dashboard</span>
+            </p>
             <article className="panel">
               <div className="panel-title">
                 <div><span>BAR CHART · รายอำเภอ</span><h2>เนื้อที่เพาะปลูก (ไร่) แยกตามปี พ.ศ.</h2></div>
                 <div className="record-count">{chartDistricts.length} อำเภอ · {selectedYearsAscending.length} ปี</div>
               </div>
               <div className="district-chart-wrap">
-                <Chart className="district-chart" label={`กราฟแท่งเนื้อที่เพาะปลูก แยก ${chartDistricts.length} อำเภอ และ ${selectedYearsAscending.length} ปี`} option={plantedBarOption}/>
+                <Chart className="district-chart" label={`กราฟแท่งเนื้อที่เพาะปลูก แยก ${chartDistricts.length} อำเภอ และ ${selectedYearsAscending.length} ปี คลิกแท่งเพื่อเลือกปี`} option={plantedBarOption} onBarYearSelect={activateYearFromChart}/>
+              </div>
+              <div className="chart-year-actions" role="group" aria-label="เลือกปีจากกราฟเนื้อที่เพาะปลูก">
+                {selectedYearsAscending.map(year => <button type="button" key={year} aria-pressed={selectedYearsAscending.length === 1} onClick={() => activateYearFromChart(year)}>พ.ศ. {year}</button>)}
               </div>
               <p className="chart-scroll-hint">เลื่อนกราฟในแนวนอนเพื่อดูข้อมูลทุกอำเภอ</p>
             </article>
@@ -430,7 +469,10 @@ function App() {
                 <div className="record-count">{chartDistricts.length} อำเภอ · {selectedYearsAscending.length} ปี</div>
               </div>
               <div className="district-chart-wrap">
-                <Chart className="district-chart" label={`กราฟแท่งผลผลิต แยก ${chartDistricts.length} อำเภอ และ ${selectedYearsAscending.length} ปี`} option={productionBarOption}/>
+                <Chart className="district-chart" label={`กราฟแท่งผลผลิต แยก ${chartDistricts.length} อำเภอ และ ${selectedYearsAscending.length} ปี คลิกแท่งเพื่อเลือกปี`} option={productionBarOption} onBarYearSelect={activateYearFromChart}/>
+              </div>
+              <div className="chart-year-actions" role="group" aria-label="เลือกปีจากกราฟผลผลิต">
+                {selectedYearsAscending.map(year => <button type="button" key={year} aria-pressed={selectedYearsAscending.length === 1} onClick={() => activateYearFromChart(year)}>พ.ศ. {year}</button>)}
               </div>
               <p className="chart-scroll-hint">เลื่อนกราฟในแนวนอนเพื่อดูข้อมูลทุกอำเภอ</p>
             </article>
@@ -523,6 +565,26 @@ function App() {
               <strong>{numberFormat.format(warningCount)}<small>ระเบียน</small></strong>
               <p>{warningCount ? "ควรตรวจข้อมูลพื้นที่ ผลผลิต หรือหมายเหตุคุณภาพใน Google Sheets" : "ข้อมูลภายใต้ตัวกรองผ่านเงื่อนไขคุณภาพทั้งหมด"}</p>
               <a href={spreadsheetUrl} target="_blank" rel="noreferrer">เปิดระบบจัดการข้อมูล <b>↗</b></a>
+            </div>
+          </section>
+
+          <section className="admin-panel" id="admin" aria-labelledby="admin-title">
+            <div>
+              <p className="eyebrow">ระบบหลังบ้านสำหรับเจ้าหน้าที่</p>
+              <h2 id="admin-title">Admin Data Manager</h2>
+              <p>จัดการข้อมูลรายปีและรายเดือนผ่าน Google Sheet ด้วยสิทธิ์บัญชีเจ้าหน้าที่ โดยไม่เปิดสิทธิ์เขียนข้อมูลจากหน้า Dashboard สาธารณะ</p>
+              <div className="admin-features">
+                <span>เพิ่มและแก้ไข</span><span>เก็บถาวรและกู้คืน</span><span>ลบพร้อมสำรอง</span><span>ตรวจข้อมูลซ้ำ</span><span>Audit Log</span><span>สำรอง Google Drive</span>
+              </div>
+            </div>
+            <div className="admin-access-card">
+              <span className="secure-badge">● ใช้สิทธิ์ Google Workspace</span>
+              <ol>
+                <li>เปิด Google Sheet ด้วยบัญชี Editor</li>
+                <li>เลือกเมนู “ระบบข้อมูลการเกษตร”</li>
+                <li>เลือก “เปิดระบบเพิ่ม/แก้ไข/ลบข้อมูล”</li>
+              </ol>
+              <a href={spreadsheetUrl} target="_blank" rel="noreferrer">เปิดระบบ Admin <b>↗</b></a>
             </div>
           </section>
         </div>

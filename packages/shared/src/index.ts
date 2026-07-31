@@ -107,6 +107,10 @@ export function toggleYearSelection(selectedYears: number[], year: number): numb
     : selectedYears.filter(selectedYear => selectedYear !== year);
 }
 
+export function selectYearFromChart(year: number): number[] {
+  return Number.isInteger(year) ? [year] : [];
+}
+
 export function calculateCropShares(records: CropRecord[], cropIds: string[]): CropShare[] {
   const plantedByCrop = cropIds.map(cropId => ({
     cropId,

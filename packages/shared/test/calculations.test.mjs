@@ -8,6 +8,7 @@ import {
   normalizeCropId,
   normalizeDataStatus,
   normalizeQualityStatus,
+  selectYearFromChart,
   toggleYearSelection,
   yoy,
 } from "../dist/index.js";
@@ -19,6 +20,10 @@ test("year selection supports non-contiguous years and always keeps one year",()
   assert.deepEqual(toggleYearSelection([2566],2564),[2566,2564]);
   assert.deepEqual(toggleYearSelection([2566,2564],2566),[2564]);
   assert.deepEqual(toggleYearSelection([2564],2564),[2564]);
+});
+test("clicking a bar activates only the selected year",()=>{
+  assert.deepEqual(selectYearFromChart(2565),[2565]);
+  assert.deepEqual(selectYearFromChart(Number.NaN),[]);
 });
 test("crop shares use the planted-area total from every crop in the year",()=>{
   const rows=[

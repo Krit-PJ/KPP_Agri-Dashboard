@@ -14,8 +14,8 @@
   --font-scale: 1;
 }
 
-:root[data-font-size="small"] {--font-scale: .9}
 :root[data-font-size="large"] {--font-scale: 1.15}
+:root[data-font-size="xlarge"] {--font-scale: 1.3}
 
 * {box-sizing: border-box}
 html {scroll-behavior: smooth; scroll-padding-top: 84px}
@@ -187,12 +187,26 @@ main {max-width: 1540px; margin: auto; padding: 24px clamp(18px, 3.2vw, 54px) 70
 .kpi-card p {font-size: calc(9px * var(--font-scale)); color: #89938d; margin: 8px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis}
 
 .chart-grid {display: grid; grid-template-columns: 1fr; gap: 12px}
+.chart-interaction-note {
+  margin: 0; padding: 10px 13px; border: 1px solid #cfe1d6; border-radius: 11px;
+  background: #f5fbf7; color: #50655a; display: flex; align-items: center; gap: 10px;
+  font-size: calc(9px * var(--font-scale));
+}
+.chart-interaction-note strong {color: var(--green-dark)}
+.chart-interaction-note span {margin-left: auto}
 .panel {background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 19px; min-width: 0}
 .panel-title {min-height: 48px}
 .panel-title h2 {font-size: calc(16px * var(--font-scale))}
 .chart {height: 320px; width: 100%}
 .district-chart {height: 420px}
 .district-chart-wrap {overflow-x: auto; overscroll-behavior-inline: contain}
+.chart-year-actions {display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: -3px 0 4px}
+.chart-year-actions button {
+  border: 1px solid #cfdad3; border-radius: 999px; padding: 5px 9px; background: #fff;
+  color: #526159; cursor: pointer; font-size: calc(9px * var(--font-scale)); font-weight: 600;
+}
+.chart-year-actions button:hover {border-color: var(--green); color: var(--green)}
+.chart-year-actions button[aria-pressed="true"] {background: var(--green-dark); border-color: var(--green-dark); color: #fff}
 .chart-scroll-hint {display: none}
 .donut-panel, .summary-panel, .method {margin-top: 12px}
 .record-count {font-size: calc(9px * var(--font-scale)); color: var(--muted); border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px; white-space: nowrap}
@@ -223,6 +237,26 @@ tbody tr:hover {background: #fafcfb}
 .method {
   background: #e5eee8; border-radius: 16px; padding: 35px clamp(25px, 4vw, 50px);
   display: grid; grid-template-columns: 1.5fr .75fr; gap: 40px; align-items: center;
+}
+.admin-panel {
+  margin-top: 12px; padding: 30px clamp(24px, 4vw, 48px); border-radius: 16px;
+  background: var(--green-dark); color: #fff; display: grid; grid-template-columns: 1.25fr .75fr;
+  gap: 38px; align-items: center; scroll-margin-top: 90px;
+}
+.admin-panel h2 {font-size: calc(27px * var(--font-scale)); margin: 4px 0 8px}
+.admin-panel > div:first-child > p:not(.eyebrow) {color: #c0d5cc; line-height: 1.7; font-size: calc(10px * var(--font-scale))}
+.admin-panel .eyebrow {color: #f1d277}
+.admin-features {display: flex; flex-wrap: wrap; gap: 6px}
+.admin-features span {
+  border: 1px solid #ffffff29; border-radius: 999px; padding: 5px 9px;
+  color: #d8e6df; font-size: calc(8px * var(--font-scale));
+}
+.admin-access-card {background: #fff; color: var(--ink); border-radius: 13px; padding: 18px}
+.secure-badge {color: #16835e; font-size: calc(9px * var(--font-scale)); font-weight: 700}
+.admin-access-card ol {padding-left: 20px; margin: 12px 0; color: #5d6b63; font-size: calc(9px * var(--font-scale)); line-height: 1.9}
+.admin-access-card a {
+  display: flex; justify-content: space-between; border-radius: 9px; padding: 10px 12px;
+  background: var(--green); color: #fff; text-decoration: none; font-size: calc(10px * var(--font-scale)); font-weight: 700;
 }
 .method h2 {font-size: calc(27px * var(--font-scale)); line-height: 1.25; margin: 6px 0 12px; letter-spacing: -.03em}
 .method > div:first-child > p:last-child {font-size: calc(11px * var(--font-scale)); color: #596a60; line-height: 1.75; max-width: 680px}
@@ -266,6 +300,7 @@ footer {background: var(--green-dark); color: #b8ccc3; padding: 25px clamp(20px,
   .crop-bullet {width: auto; flex: 1 0 135px; border: 1px solid #edf1ee}
   .district-filter {width: 100%; border-top: 1px solid #edf1ee}
   .method {grid-template-columns: 1fr}
+  .admin-panel {grid-template-columns: 1fr}
 }
 @media (max-width: 540px) {
   main {padding-left: 12px; padding-right: 12px}
@@ -279,6 +314,8 @@ footer {background: var(--green-dark); color: #b8ccc3; padding: 25px clamp(20px,
   .kpis {grid-template-columns: 1fr}
   .section-title, .panel-title {flex-direction: column}
   .panel {padding: 15px}
+  .chart-interaction-note {align-items: flex-start; flex-direction: column; gap: 2px}
+  .chart-interaction-note span {margin-left: 0}
   .chart {height: 285px}
   .district-chart {height: 390px; min-width: 760px}
   .district-chart-wrap {

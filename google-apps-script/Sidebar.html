@@ -8,12 +8,13 @@
     *{box-sizing:border-box}body{margin:0;background:#f6f8f6;font-size:13px}.app{padding:15px}.head{background:var(--dark);color:#fff;border-radius:14px;padding:17px;margin-bottom:12px}.head h1{font-size:18px;margin:0 0 4px}.head p{font-size:11px;color:#c6d8d0;margin:0}
     .tabs{display:grid;grid-template-columns:1fr 1fr;gap:5px;background:#e8eeea;border-radius:10px;padding:4px;margin-bottom:12px}.tabs button{border:0;border-radius:7px;background:transparent;padding:9px;color:#617068;cursor:pointer}.tabs button.active{background:#fff;color:var(--green);font-weight:700;box-shadow:0 1px 4px #00000012}
     .card{background:#fff;border:1px solid var(--line);border-radius:13px;padding:13px;margin-bottom:11px}.card h2{font-size:14px;margin:0 0 11px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.full{grid-column:1/-1}label span{display:block;font-size:10px;color:var(--muted);font-weight:700;margin:0 0 4px 2px}input,select{width:100%;border:1px solid #cfd9d2;border-radius:8px;background:#fff;padding:8px 9px;min-height:36px;font:inherit;color:#243d33}input:focus,select:focus{outline:2px solid #197b5a22;border-color:var(--green)}.actions{display:flex;gap:7px;margin-top:12px}.btn{border:0;border-radius:8px;padding:9px 12px;cursor:pointer;font-weight:700}.primary{background:var(--green);color:#fff}.secondary{background:#edf2ef;color:#345146}.danger{background:#fff0ef;color:var(--danger)}.btn:disabled{opacity:.5;cursor:wait}
-    .toolbar{display:flex;gap:7px;margin-bottom:9px}.toolbar input{flex:1}.toolbar button{white-space:nowrap}.list{display:grid;gap:7px}.row{border:1px solid var(--line);border-radius:9px;padding:9px;background:#fff}.rowtop{display:flex;align-items:flex-start;justify-content:space-between;gap:7px}.row strong{font-size:12px}.meta{font-size:10px;color:var(--muted);margin-top:4px}.rowbuttons{display:flex;gap:4px}.icon{border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 7px;cursor:pointer;font-size:10px}.archived{opacity:.62}.badge{font-size:9px;padding:2px 6px;border-radius:20px;background:#e9f5ef;color:var(--green)}.badge.arch{background:#eee;color:#666}.paging{display:flex;justify-content:space-between;align-items:center;margin-top:10px;color:var(--muted);font-size:10px}.paging button{border:1px solid var(--line);background:#fff;border-radius:7px;padding:6px 9px;cursor:pointer}.notice{position:sticky;bottom:8px;padding:10px 12px;border-radius:9px;background:var(--dark);color:#fff;box-shadow:0 8px 24px #0003;margin-top:10px}.notice.error{background:var(--danger)}.hidden{display:none}.loading{opacity:.55;pointer-events:none}.system{display:flex;gap:6px;flex-wrap:wrap}.system .btn{font-size:10px;padding:7px 9px}
+    .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:12px}.summary div{background:#ffffff12;border:1px solid #ffffff1c;border-radius:8px;padding:7px;text-align:center}.summary strong{display:block;font-size:15px}.summary span{font-size:8px;color:#c6d8d0}
+    .toolbar{display:grid;grid-template-columns:1fr 112px auto;gap:7px;margin-bottom:9px}.toolbar button{white-space:nowrap}.list{display:grid;gap:7px}.row{border:1px solid var(--line);border-radius:9px;padding:9px;background:#fff}.rowtop{display:flex;align-items:flex-start;justify-content:space-between;gap:7px}.row strong{font-size:12px}.meta{font-size:10px;color:var(--muted);margin-top:4px}.rowbuttons{display:flex;gap:4px}.icon{border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 7px;cursor:pointer;font-size:10px}.archived{opacity:.62}.badge{font-size:9px;padding:2px 6px;border-radius:20px;background:#e9f5ef;color:var(--green)}.badge.arch{background:#eee;color:#666}.paging{display:flex;justify-content:space-between;align-items:center;margin-top:10px;color:var(--muted);font-size:10px}.paging button{border:1px solid var(--line);background:#fff;border-radius:7px;padding:6px 9px;cursor:pointer}.notice{position:sticky;bottom:8px;padding:10px 12px;border-radius:9px;background:var(--dark);color:#fff;box-shadow:0 8px 24px #0003;margin-top:10px}.notice.error{background:var(--danger)}.hidden{display:none}.loading{opacity:.55;pointer-events:none}.system{display:flex;gap:6px;flex-wrap:wrap}.system .btn{font-size:10px;padding:7px 9px}
   </style>
 </head>
 <body>
 <div class="app" id="app">
-  <section class="head"><h1>จัดการข้อมูลการเกษตร</h1><p id="identity">กำลังตรวจสอบระบบ…</p></section>
+  <section class="head"><h1>จัดการข้อมูลการเกษตร</h1><p id="identity">กำลังตรวจสอบระบบ…</p><div class="summary" id="summary"></div></section>
   <div class="tabs"><button id="tabAnnual" class="active" onclick="switchType('annual')">ข้อมูลรายปี</button><button id="tabMonthly" onclick="switchType('monthly')">ข้อมูลรายเดือน</button></div>
 
   <section class="card">
@@ -38,7 +39,7 @@
   </section>
 
   <section class="card">
-    <div class="toolbar"><input id="search" placeholder="ค้นหารหัส ปี อำเภอ หรือพืช" oninput="scheduleSearch()"><button class="btn secondary" onclick="loadRecords(1)">ค้นหา</button></div>
+    <div class="toolbar"><input id="search" placeholder="ค้นหารหัส ปี อำเภอ หรือพืช" oninput="scheduleSearch()"><select id="statusFilter" onchange="loadRecords(1)"><option value="">ทุกสถานะ</option><option value="active">เผยแพร่</option><option value="draft">ฉบับร่าง</option><option value="archived">เก็บถาวร</option></select><button class="btn secondary" onclick="loadRecords(1)">ค้นหา</button></div>
     <div id="recordList" class="list"></div>
     <div class="paging"><button id="prev" onclick="loadRecords(state.page-1)">ก่อนหน้า</button><span id="pageInfo"></span><button id="next" onclick="loadRecords(state.page+1)">ถัดไป</button></div>
   </section>
@@ -61,11 +62,22 @@
     try{
       state.bootstrap=await call('getBootstrap');
       $('identity').textContent=`เวอร์ชัน ${state.bootstrap.version} · ${state.bootstrap.userEmail}`;
+      renderSummary();
       fillSelect('district_code',state.bootstrap.districts,'เลือกอำเภอ');
       fillSelect('crop_code',state.bootstrap.crops,'เลือกชนิดพืช');
       fillSelect('month_number',state.bootstrap.months,'เลือกเดือน');
       await loadRecords(1);
     }catch(error){notify(error.message,true)}
+  }
+  function renderSummary(){
+    const summary=state.bootstrap.summary[state.type];
+    $('summary').innerHTML=[
+      ['ทั้งหมด',summary.total],['เผยแพร่',summary.active],['ฉบับร่าง',summary.draft],['เก็บถาวร',summary.archived],
+    ].map(item=>`<div><strong>${escapeHtml(item[1])}</strong><span>${escapeHtml(item[0])}</span></div>`).join('');
+  }
+  async function refreshSummary(){
+    state.bootstrap.summary=await call('getSystemSummary');
+    renderSummary();
   }
   function switchType(type){
     state.type=type;state.page=1;
@@ -73,7 +85,7 @@
     ['monthField','householdField'].forEach(id=>$(id).classList.toggle('hidden',type==='annual'));
     ['harvestedField','productionField','sourceYieldField'].forEach(id=>$(id).classList.toggle('hidden',type==='monthly'));
     $('formTitle').textContent=type==='annual'?'เพิ่มข้อมูลรายปี':'เพิ่มข้อมูลรายเดือน';
-    resetForm();loadRecords(1);
+    renderSummary();resetForm();loadRecords(1);
   }
   function fieldValue(id){const value=$(id).value.trim();return value===''?null:value}
   function formData(){
@@ -87,7 +99,7 @@
     try{
       const result=await call('saveRecord',{type:state.type,data:formData()});
       notify(result.action==='CREATE'?'เพิ่มข้อมูลสำเร็จ':'แก้ไขข้อมูลสำเร็จ');
-      resetForm();await loadRecords(1);
+      resetForm();await Promise.all([loadRecords(1),refreshSummary()]);
     }catch(error){notify(error.message,true)}finally{busy(false)}
   }
   function resetForm(){
@@ -107,21 +119,21 @@
   async function setArchive(id,isArchived){
     if(!confirm(isArchived?'นำระเบียนนี้กลับมาเผยแพร่?':'เก็บระเบียนนี้ออกจาก Dashboard?'))return;
     busy(true);
-    try{await call(isArchived?'restoreRecord':'archiveRecord',{type:state.type,id});notify(isArchived?'กู้คืนข้อมูลแล้ว':'เก็บข้อมูลถาวรแล้ว');await loadRecords(state.page)}
+    try{await call(isArchived?'restoreRecord':'archiveRecord',{type:state.type,id});notify(isArchived?'กู้คืนข้อมูลแล้ว':'เก็บข้อมูลถาวรแล้ว');await Promise.all([loadRecords(state.page),refreshSummary()])}
     catch(error){notify(error.message,true)}finally{busy(false)}
   }
   async function hardDelete(id){
     const confirmation=prompt('การลบถาวรจะสำรองข้อมูลเดิมก่อนลบ\\nพิมพ์รหัสระเบียนเพื่อยืนยัน:', '');
     if(confirmation!==id)return notify('ยกเลิกการลบ: รหัสยืนยันไม่ตรง',true);
     busy(true);
-    try{await call('deleteRecordPermanently',{type:state.type,id,confirmation});notify('ลบข้อมูลถาวรแล้ว (มีสำรองใน _Row_Backups)');await loadRecords(1)}
+    try{await call('deleteRecordPermanently',{type:state.type,id,confirmation});notify('ลบข้อมูลถาวรแล้ว (มีสำรองใน _Row_Backups)');await Promise.all([loadRecords(1),refreshSummary()])}
     catch(error){notify(error.message,true)}finally{busy(false)}
   }
   async function loadRecords(page){
     if(page<1)return;
     busy(true);
     try{
-      const result=await call('listRecords',{type:state.type,page,pageSize:state.pageSize,search:$('search').value});
+      const result=await call('listRecords',{type:state.type,page,pageSize:state.pageSize,search:$('search').value,status:$('statusFilter').value});
       Object.assign(state,{page:result.page,total:result.total});
       const idKey=state.type==='annual'?'record_id':'monthly_record_id';
       $('recordList').innerHTML=result.rows.length?result.rows.map(row=>{
