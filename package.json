@@ -1,7 +1,7 @@
 {
   "name": "kpp-agricultural-dashboard",
   "private": true,
-  "version": "4.2.0",
+  "version": "4.3.0",
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "data:build": "python scripts/import/profile_and_export.py",

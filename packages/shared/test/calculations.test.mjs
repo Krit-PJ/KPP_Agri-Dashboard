@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  aggregateDistrictYearMetric,
   calculateCropShares,
   calculateKpis,
   canonicalCropName,
@@ -46,4 +47,23 @@ test("Google Sheet status values map to the dashboard contract",()=>{
   assert.equal(normalizeQualityStatus("valid"),"pass");
   assert.equal(normalizeQualityStatus("warning"),"warning");
   assert.equal(normalizeQualityStatus("invalid"),"error");
+});
+test("district-year aggregation creates one grouped bar series per selected year",()=>{
+  const records=[
+    {year_be:2565,district_name:"เมือง",planted_area_rai:100,production_ton:40},
+    {year_be:2565,district_name:"คลองลาน",planted_area_rai:80,production_ton:30},
+    {year_be:2566,district_name:"เมือง",planted_area_rai:120,production_ton:50},
+    {year_be:2566,district_name:"เมือง",planted_area_rai:30,production_ton:10},
+  ];
+  assert.deepEqual(
+    aggregateDistrictYearMetric(records,["เมือง","คลองลาน"],[2565,2566],"planted_area_rai"),
+    [
+      {year:2565,values:[100,80]},
+      {year:2566,values:[150,0]},
+    ],
+  );
+  assert.deepEqual(
+    aggregateDistrictYearMetric(records,["เมือง"],[2566],"production_ton"),
+    [{year:2566,values:[60]}],
+  );
 });

@@ -18,6 +18,11 @@ export type CropShare = {
   percent: number | null;
 };
 
+export type DistrictYearSeries = {
+  year: number;
+  values: number[];
+};
+
 export const cropCatalog = [
   ["rice_offseason", "ข้าวนาปรัง"],
   ["rice_main", "ข้าวนาปี"],
@@ -111,6 +116,21 @@ export function calculateCropShares(records: CropRecord[], cropIds: string[]): C
   return plantedByCrop.map(crop => ({
     ...crop,
     percent: totalPlanted > 0 ? crop.planted / totalPlanted : null,
+  }));
+}
+
+export function aggregateDistrictYearMetric(
+  records: CropRecord[],
+  districts: string[],
+  years: number[],
+  metric: "planted_area_rai" | "production_ton",
+): DistrictYearSeries[] {
+  return years.map(year => ({
+    year,
+    values: districts.map(district => records.reduce((total, record) => {
+      if (record.year_be !== year || record.district_name !== district) return total;
+      return total + (record[metric] ?? 0);
+    }, 0)),
   }));
 }
 

@@ -1,10 +1,11 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import {createRoot} from "react-dom/client";
 import {init, use, type EChartsCoreOption} from "echarts/core";
-import {BarChart, LineChart, PieChart} from "echarts/charts";
+import {BarChart, PieChart} from "echarts/charts";
 import {GridComponent, LegendComponent, TooltipComponent} from "echarts/components";
 import {CanvasRenderer} from "echarts/renderers";
 import {
+  aggregateDistrictYearMetric,
   calculateCropShares,
   calculateKpis,
   cropCatalog,
@@ -22,7 +23,7 @@ import {
 } from "./dataSource";
 import "./styles.css";
 
-use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
+use([BarChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
 
 type Payload = DashboardPayload;
 type Metric = "planted" | "harvested" | "production" | "weightedYield";
@@ -32,8 +33,10 @@ const numberFormat = new Intl.NumberFormat("th-TH", {maximumFractionDigits: 0});
 const decimalFormat = new Intl.NumberFormat("th-TH", {maximumFractionDigits: 1});
 const percentFormat = new Intl.NumberFormat("th-TH", {style: "percent", maximumFractionDigits: 1});
 const dateFormat = new Intl.DateTimeFormat("th-TH", {dateStyle: "medium", timeStyle: "short"});
-const appVersion = "4.2.0";
+const appVersion = "4.3.0";
 const cropPalette = ["#16835e", "#2457c5", "#f2a33a", "#9a62c7", "#e05b72", "#6e7e45", "#d4b22c", "#4f92a6", "#e37d42"];
+const yearPalette = ["#16835e", "#2457c5", "#e7a124", "#9a62c7", "#df5c73", "#34889b", "#8d7039", "#5a7d3c", "#d6743f", "#5571a7", "#9c5678"];
+type FontSize = "small" | "normal" | "large";
 
 const metricMeta: Record<Metric, {label: string; unit: string}> = {
   planted: {label: "เนื้อที่เพาะปลูก", unit: "ไร่"},
@@ -77,6 +80,19 @@ function KpiCard({metric, value, detail, tone}: {
   </article>;
 }
 
+function ChangeValue({value}: {value: number | null}) {
+  if (value === null) return <span className="trend neutral">—</span>;
+  if (value === 0) return <span className="trend neutral">0%</span>;
+  const positive = value > 0;
+  return <span
+    className={`trend ${positive ? "positive" : "negative"}`}
+    aria-label={`${positive ? "เพิ่มขึ้น" : "ลดลง"} ${percentFormat.format(Math.abs(value))}`}
+  >
+    <span className="trend-arrow" aria-hidden="true">{positive ? "↑" : "↓"}</span>
+    <span aria-hidden="true">{positive ? "+" : "−"}{percentFormat.format(Math.abs(value))}</span>
+  </span>;
+}
+
 function App() {
   const [data, setData] = useState<Payload | null>(null);
   const [connection, setConnection] = useState<DashboardData | null>(null);
@@ -86,6 +102,15 @@ function App() {
   const [district, setDistrict] = useState("all");
   const [menuOpen, setMenuOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [fontSize, setFontSize] = useState<FontSize>(() => {
+    const saved = window.localStorage.getItem("kpp-font-size");
+    return saved === "small" || saved === "large" ? saved : "normal";
+  });
+
+  useEffect(() => {
+    document.documentElement.dataset.fontSize = fontSize;
+    window.localStorage.setItem("kpp-font-size", fontSize);
+  }, [fontSize]);
 
   const refreshData = async () => {
     setIsRefreshing(true);
@@ -148,6 +173,28 @@ function App() {
     () => allYearly.filter(item => selectedYearSet.has(item.year)),
     [allYearly, selectedYearSet],
   );
+  const chartDistricts = useMemo(
+    () => district === "all" ? options?.districts ?? [] : [district],
+    [district, options],
+  );
+  const plantedByDistrictYear = useMemo(
+    () => aggregateDistrictYearMetric(
+      selectedRecords,
+      chartDistricts,
+      selectedYearsAscending,
+      "planted_area_rai",
+    ),
+    [selectedRecords, chartDistricts, selectedYearsAscending],
+  );
+  const productionByDistrictYear = useMemo(
+    () => aggregateDistrictYearMetric(
+      selectedRecords,
+      chartDistricts,
+      selectedYearsAscending,
+      "production_ton",
+    ),
+    [selectedRecords, chartDistricts, selectedYearsAscending],
+  );
 
   const donutByYear = useMemo(() => selectedYearsAscending.map(year => {
     const yearRecords = published.filter(record =>
@@ -203,53 +250,79 @@ function App() {
     axisLabel: {color: "#68766e"},
     axisTick: {show: false},
   };
-  const lineOption: EChartsCoreOption = {
+  const chartFontScale = fontSize === "small" ? .9 : fontSize === "large" ? 1.15 : 1;
+  const createDistrictBarOption = (
+    seriesByYear: typeof plantedByDistrictYear,
+    unit: "ไร่" | "ตัน",
+  ): EChartsCoreOption => ({
     animationDuration: 650,
-    tooltip: {trigger: "axis", valueFormatter: (value: unknown) => `${numberFormat.format(Number(value))} ไร่`},
-    grid: {left: 64, right: 20, bottom: 38, top: 25},
-    xAxis: {type: "category", data: selectedYearly.map(item => item.year), boundaryGap: false, ...commonAxis},
-    yAxis: {
-      type: "value",
-      splitLine: {lineStyle: {color: "#edf1ee"}},
-      axisLabel: {color: "#68766e", formatter: (value: number) => compactNumber(value)},
+    color: yearPalette,
+    tooltip: {
+      trigger: "axis",
+      axisPointer: {type: "shadow"},
+      valueFormatter: (value: unknown) => `${numberFormat.format(Number(value))} ${unit}`,
     },
-    series: [{
-      name: "เนื้อที่เพาะปลูก",
-      type: "line",
-      smooth: selectedYearly.length > 2 ? 0.25 : false,
-      symbol: "circle",
-      symbolSize: 9,
-      data: selectedYearly.map(item => item.kpis.planted),
-      lineStyle: {color: "#16835e", width: 3},
-      itemStyle: {color: "#16835e", borderColor: "#fff", borderWidth: 2},
-      areaStyle: {
-        color: {
-          type: "linear", x: 0, y: 0, x2: 0, y2: 1,
-          colorStops: [{offset: 0, color: "#16835e38"}, {offset: 1, color: "#16835e00"}],
-        },
+    legend: {
+      show: selectedYearsAscending.length > 1,
+      top: 0,
+      type: "scroll",
+      itemWidth: 12,
+      itemHeight: 8,
+      textStyle: {color: "#5d6b63", fontSize: Math.round(10 * chartFontScale)},
+    },
+    grid: {
+      left: 70,
+      right: 24,
+      bottom: chartDistricts.length > 4 ? 92 : 55,
+      top: selectedYearsAscending.length > 1 ? 48 : 24,
+    },
+    xAxis: {
+      type: "category",
+      data: chartDistricts,
+      ...commonAxis,
+      axisLabel: {
+        color: "#68766e",
+        fontSize: Math.round(11 * chartFontScale),
+        interval: 0,
+        rotate: chartDistricts.length > 4 ? 32 : 0,
+        width: 105,
+        overflow: "truncate",
       },
-    }],
-  };
-  const barOption: EChartsCoreOption = {
-    animationDuration: 650,
-    tooltip: {trigger: "axis", axisPointer: {type: "shadow"}, valueFormatter: (value: unknown) => `${numberFormat.format(Number(value))} ตัน`},
-    grid: {left: 64, right: 20, bottom: 38, top: 25},
-    xAxis: {type: "category", data: selectedYearly.map(item => item.year), ...commonAxis},
+    },
     yAxis: {
       type: "value",
       splitLine: {lineStyle: {color: "#edf1ee"}},
-      axisLabel: {color: "#68766e", formatter: (value: number) => compactNumber(value)},
+      axisLabel: {
+        color: "#68766e",
+        fontSize: Math.round(11 * chartFontScale),
+        formatter: (value: number) => compactNumber(value),
+      },
     },
-    series: [{
-      name: "ผลผลิต",
+    series: seriesByYear.map((item, index) => ({
+      name: `พ.ศ. ${item.year}`,
       type: "bar",
-      barMaxWidth: 44,
-      data: selectedYearly.map(item => item.kpis.production),
-      itemStyle: {color: "#e7a124", borderRadius: [7, 7, 0, 0]},
-    }],
-  };
+      barMaxWidth: selectedYearsAscending.length === 1 ? 48 : 30,
+      barGap: "15%",
+      data: item.values,
+      itemStyle: {
+        color: yearPalette[index % yearPalette.length],
+        borderRadius: [5, 5, 0, 0],
+      },
+    })),
+  });
+  const plantedBarOption = createDistrictBarOption(plantedByDistrictYear, "ไร่");
+  const productionBarOption = createDistrictBarOption(productionByDistrictYear, "ตัน");
 
   return <div className="app">
+    <section className="accessibility-bar" aria-label="เครื่องมือช่วยการเข้าถึง">
+      <span>การแสดงผล</span>
+      <div className="font-controls" role="group" aria-label="ปรับขนาดตัวอักษร">
+        <span className="font-label">ขนาดตัวอักษร</span>
+        <button type="button" className={fontSize === "small" ? "active" : ""} aria-pressed={fontSize === "small"} onClick={() => setFontSize("small")} title="ตัวอักษรขนาดเล็ก">ก−</button>
+        <button type="button" className={fontSize === "normal" ? "active" : ""} aria-pressed={fontSize === "normal"} onClick={() => setFontSize("normal")} title="ตัวอักษรขนาดมาตรฐาน">ก</button>
+        <button type="button" className={fontSize === "large" ? "active" : ""} aria-pressed={fontSize === "large"} onClick={() => setFontSize("large")} title="ตัวอักษรขนาดใหญ่">ก+</button>
+      </div>
+    </section>
     <header className="topbar">
       <a className="brand" href="#overview" aria-label="กลับไปยังภาพรวม">
         <div className="mark">กพ</div>
@@ -343,15 +416,23 @@ function App() {
           <section className="chart-grid" id="charts">
             <article className="panel">
               <div className="panel-title">
-                <div><span>LINE GRAPH</span><h2>เนื้อที่เพาะปลูก (ไร่) แยกตามปี พ.ศ.</h2></div>
+                <div><span>BAR CHART · รายอำเภอ</span><h2>เนื้อที่เพาะปลูก (ไร่) แยกตามปี พ.ศ.</h2></div>
+                <div className="record-count">{chartDistricts.length} อำเภอ · {selectedYearsAscending.length} ปี</div>
               </div>
-              <Chart label="กราฟเส้นเนื้อที่เพาะปลูกแยกตามปี พ.ศ." option={lineOption}/>
+              <div className="district-chart-wrap">
+                <Chart className="district-chart" label={`กราฟแท่งเนื้อที่เพาะปลูก แยก ${chartDistricts.length} อำเภอ และ ${selectedYearsAscending.length} ปี`} option={plantedBarOption}/>
+              </div>
+              <p className="chart-scroll-hint">เลื่อนกราฟในแนวนอนเพื่อดูข้อมูลทุกอำเภอ</p>
             </article>
             <article className="panel">
               <div className="panel-title">
-                <div><span>BAR GRAPH</span><h2>ผลผลิต (ตัน) แยกตามปี พ.ศ.</h2></div>
+                <div><span>BAR CHART · รายอำเภอ</span><h2>ผลผลิต (ตัน) แยกตามปี พ.ศ.</h2></div>
+                <div className="record-count">{chartDistricts.length} อำเภอ · {selectedYearsAscending.length} ปี</div>
               </div>
-              <Chart label="กราฟแท่งผลผลิตแยกตามปี พ.ศ." option={barOption}/>
+              <div className="district-chart-wrap">
+                <Chart className="district-chart" label={`กราฟแท่งผลผลิต แยก ${chartDistricts.length} อำเภอ และ ${selectedYearsAscending.length} ปี`} option={productionBarOption}/>
+              </div>
+              <p className="chart-scroll-hint">เลื่อนกราฟในแนวนอนเพื่อดูข้อมูลทุกอำเภอ</p>
             </article>
           </section>
 
@@ -373,7 +454,13 @@ function App() {
                       return `${item.name}<br/>${numberFormat.format(item.value)} ไร่ (${share})`;
                     },
                   },
-                  legend: {bottom: 0, type: "scroll", itemWidth: 8, itemHeight: 8, textStyle: {color: "#637069", fontSize: 9}},
+                  legend: {
+                    bottom: 0,
+                    type: "scroll",
+                    itemWidth: 8,
+                    itemHeight: 8,
+                    textStyle: {color: "#637069", fontSize: Math.round(9 * chartFontScale)},
+                  },
                   series: [{
                     type: "pie",
                     radius: ["48%", "70%"],
@@ -417,12 +504,8 @@ function App() {
                   <td className="num">{formatNumber(item.kpis.harvested)}</td>
                   <td className="num">{formatNumber(item.kpis.production)}</td>
                   <td className="num">{formatNumber(item.kpis.weightedYield)}</td>
-                  <td className={`num delta-cell ${(plantedChange ?? 0) > 0 ? "positive" : (plantedChange ?? 0) < 0 ? "negative" : ""}`}>
-                    {plantedChange === null ? "—" : percentFormat.format(plantedChange)}
-                  </td>
-                  <td className={`num delta-cell ${(productionChange ?? 0) > 0 ? "positive" : (productionChange ?? 0) < 0 ? "negative" : ""}`}>
-                    {productionChange === null ? "—" : percentFormat.format(productionChange)}
-                  </td>
+                  <td className="num delta-cell"><ChangeValue value={plantedChange}/></td>
+                  <td className="num delta-cell"><ChangeValue value={productionChange}/></td>
                 </tr>;
               })}</tbody>
             </table></div>
