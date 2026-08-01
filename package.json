@@ -1,15 +1,20 @@
 {
   "name": "kpp-agricultural-dashboard",
   "private": true,
-  "version": "4.4.1",
-  "workspaces": ["apps/*", "packages/*"],
+  "version": "4.4.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "data:build": "python scripts/import/profile_and_export.py",
     "data:audit": "npm run build -w @kpp/shared && node scripts/audit-google-sheet.mjs",
     "dev": "npm run dev -w @kpp/web",
     "build": "npm run build -w @kpp/shared && npm run build -w @kpp/web",
-    "test": "npm run test -w @kpp/shared && node scripts/test-apps-script.mjs && node scripts/test-bundled-snapshot.mjs",
+    "test": "npm run test -w @kpp/shared && npm run test -w @kpp/web && node scripts/test-apps-script.mjs && node scripts/test-bundled-snapshot.mjs",
     "typecheck": "npm run build -w @kpp/shared && npm run typecheck -w @kpp/web"
   },
-  "engines": {"node": ">=20"}
+  "engines": {
+    "node": ">=20"
+  }
 }

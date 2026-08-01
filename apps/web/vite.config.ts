@@ -9,9 +9,10 @@ export default defineConfig({
     chunkSizeWarningLimit:700,
     rollupOptions:{
       output:{
-        manualChunks:{
-          charts:["echarts/core","echarts/charts","echarts/components","echarts/renderers"],
-          react:["react","react-dom"],
+        manualChunks(id){
+          if (id.includes("/echarts/")) return "charts";
+          if (id.includes("/react/") || id.includes("/react-dom/")) return "react";
+          if (id.endsWith("/crop-annual.json")) return "snapshot";
         },
       },
     },

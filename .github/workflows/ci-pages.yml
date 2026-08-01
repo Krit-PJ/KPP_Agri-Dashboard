@@ -13,6 +13,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run typecheck
+      - run: npm run typecheck -w @kpp/api
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name == 'push'

@@ -27,6 +27,15 @@ npm run dev
 
 Dashboard จะอ่านข้อมูลล่าสุดจากชีต `Annual_Data` โดยตรง หาก Google Sheets ไม่พร้อมชั่วคราว ระบบจะใช้ข้อมูล live ล่าสุดที่บันทึกไว้ในอุปกรณ์ และใช้ JSON snapshot เป็น fallback ลำดับสุดท้าย
 
+### Dashboard รุ่น 4.4.2
+
+- อัปเกรด Apache ECharts เป็น 6.1 เพื่อแก้ช่องโหว่ XSS และถอด React Router ที่ไม่ได้ใช้งาน
+- ตรวจ Data Contract ก่อนใช้ข้อมูลสด, browser cache และ snapshot สำรอง
+- ปฏิเสธ CSV ที่มีรหัสระเบียนซ้ำ ปีไม่สอดคล้อง ตัวเลขเสียรูป ค่าติดลบ หรือ quote ไม่ครบ
+- ปรับตัวกรองปีและอำเภออัตโนมัติเมื่อชุดข้อมูลสดเปลี่ยน และแสดงสถานะเมื่อไม่มีข้อมูลเผยแพร่
+- เพิ่ม automated tests สำหรับ CSV, cache และ snapshot รวมชุดทดสอบทั้งหมด 14 รายการ
+- แยก snapshot เป็น production chunk เพื่อให้โค้ดหลักมีขนาดเล็กลงและ cache ได้เป็นอิสระ
+
 ### Dashboard รุ่น 4.4.1
 
 - แสดง Dashboard จาก snapshot ที่ฝังใน production bundle ทันที แล้วตรวจข้อมูลล่าสุดจาก Google Sheets เบื้องหลัง

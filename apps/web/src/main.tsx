@@ -35,7 +35,7 @@ const numberFormat = new Intl.NumberFormat("th-TH", {maximumFractionDigits: 0});
 const decimalFormat = new Intl.NumberFormat("th-TH", {maximumFractionDigits: 1});
 const percentFormat = new Intl.NumberFormat("th-TH", {style: "percent", maximumFractionDigits: 1});
 const dateFormat = new Intl.DateTimeFormat("th-TH", {dateStyle: "medium", timeStyle: "short"});
-const appVersion = "4.4.1";
+const appVersion = "4.4.2";
 const cropPalette = ["#16835e", "#2457c5", "#f2a33a", "#9a62c7", "#e05b72", "#6e7e45", "#d4b22c", "#4f92a6", "#e37d42"];
 const yearPalette = ["#16835e", "#2457c5", "#e7a124", "#9a62c7", "#df5c73", "#34889b", "#8d7039", "#5a7d3c", "#d6743f", "#5571a7", "#9c5678"];
 type FontSize = "normal" | "large" | "xlarge";
@@ -179,8 +179,14 @@ function App() {
   } : null, [data, published]);
 
   useEffect(() => {
-    if (options && selectedYears.length === 0) setSelectedYears(options.years.slice(0, 1));
-  }, [options, selectedYears.length]);
+    if (!options) return;
+    setSelectedYears(current => {
+      const available = current.filter(year => options.years.includes(year));
+      return available.length ? available : options.years.slice(0, 1);
+    });
+    setDistrict(current => current === "all" || options.districts.includes(current) ? current : "all");
+    setCrop(current => options.crops.some(([cropId]) => cropId === current) ? current : cropCatalog[0][0]);
+  }, [options]);
 
   const context = useMemo(() => published.filter(record =>
     record.crop_id === crop
@@ -247,6 +253,14 @@ function App() {
       })).filter(item => item.value > 0) ?? [],
     };
   }), [selectedYearsAscending, published, district, options, crop]);
+
+  if (options && options.years.length === 0) return <main className="loading error-state">
+    <strong>ไม่พบข้อมูลที่เผยแพร่</strong>
+    <p>กรุณาตรวจสถานะระเบียนใน Google Sheets แล้วลองโหลดข้อมูลอีกครั้ง</p>
+    <button type="button" onClick={() => void refreshData()} disabled={isRefreshing}>
+      {isRefreshing ? "กำลังโหลด…" : "ลองโหลดใหม่"}
+    </button>
+  </main>;
 
   if (!options || selectedYears.length === 0) return <main className="loading">
     <span className="loader"/><p>กำลังเตรียม Dashboard…</p>

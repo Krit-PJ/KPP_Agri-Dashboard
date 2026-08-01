@@ -75,9 +75,10 @@ export function canonicalCropName(cropId: CropId): string {
 
 export function normalizeQualityStatus(value: string): CropRecord["quality_status"] {
   const status = value.trim().toLowerCase();
+  if (["pass", "valid", "ผ่าน"].includes(status)) return "pass";
   if (["warning", "warn", "คำเตือน"].includes(status)) return "warning";
   if (["error", "invalid", "fail", "ไม่ผ่าน"].includes(status)) return "error";
-  return "pass";
+  return "warning";
 }
 
 export function normalizeDataStatus(value: string): CropRecord["data_status"] {

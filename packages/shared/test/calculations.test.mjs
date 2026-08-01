@@ -52,6 +52,7 @@ test("Google Sheet status values map to the dashboard contract",()=>{
   assert.equal(normalizeQualityStatus("valid"),"pass");
   assert.equal(normalizeQualityStatus("warning"),"warning");
   assert.equal(normalizeQualityStatus("invalid"),"error");
+  assert.equal(normalizeQualityStatus("unexpected"),"warning");
 });
 test("district-year aggregation creates one grouped bar series per selected year",()=>{
   const records=[
