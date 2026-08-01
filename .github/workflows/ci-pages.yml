@@ -15,7 +15,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run typecheck -w @kpp/api
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         if: github.event_name == 'push'
         with: {path: apps/web/dist}
   deploy:
