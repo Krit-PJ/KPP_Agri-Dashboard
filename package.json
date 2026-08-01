@@ -1,7 +1,7 @@
 {
   "name": "kpp-agricultural-dashboard",
   "private": true,
-  "version": "4.4.3",
+  "version": "5.1.0",
   "workspaces": [
     "apps/*",
     "packages/*"

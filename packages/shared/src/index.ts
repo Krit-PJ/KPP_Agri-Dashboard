@@ -112,6 +112,22 @@ export function selectYearFromChart(year: number): number[] {
   return Number.isInteger(year) ? [year] : [];
 }
 
+export function availableYearsForCrop(
+  records: Array<Pick<CropRecord, "crop_id" | "year_be">>,
+  cropId: string,
+): number[] {
+  return [...new Set(records
+    .filter(record => record.crop_id === cropId)
+    .map(record => record.year_be))]
+    .sort((a, b) => b - a);
+}
+
+export function reconcileYearSelection(selectedYears: number[], availableYears: number[]): number[] {
+  const available = new Set(availableYears);
+  const validSelection = selectedYears.filter(year => available.has(year));
+  return validSelection.length ? validSelection : availableYears.slice(0, 1);
+}
+
 export function calculateCropShares(records: CropRecord[], cropIds: string[]): CropShare[] {
   const plantedByCrop = cropIds.map(cropId => ({
     cropId,

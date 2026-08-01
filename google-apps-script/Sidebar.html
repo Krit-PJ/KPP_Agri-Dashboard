@@ -16,6 +16,13 @@
 <div class="app" id="app">
   <section class="head"><h1>จัดการข้อมูลการเกษตร</h1><p id="identity">กำลังตรวจสอบระบบ…</p><div class="summary" id="summary"></div></section>
   <div class="tabs"><button id="tabAnnual" class="active" onclick="switchType('annual')">ข้อมูลรายปี</button><button id="tabMonthly" onclick="switchType('monthly')">ข้อมูลรายเดือน</button></div>
+  <section class="card">
+    <h2>นำเข้าข้อมูลและสิทธิ์ผู้ดูแล</h2><p id="accessInfo" class="meta">กำลังตรวจสอบสิทธิ์…</p>
+    <div class="grid"><label class="full"><span>ชุดข้อมูล</span><select id="importKind" onchange="$('registrationFields').classList.toggle('hidden',this.value!=='registration')"><option value="unified">ข้อมูลเอกภาพ (9 ชนิดพืช)</option><option value="registration">ข้อมูลผลการขึ้นทะเบียน</option></select></label>
+      <div id="registrationFields" class="grid full hidden"><label><span>ชนิดพืช *</span><select id="importCrop"></select></label><label><span>ประเภทพื้นที่ *</span><select id="metricType"><option value="planted">พื้นที่ปลูก</option><option value="harvested">พื้นที่เก็บเกี่ยว</option></select></label></div>
+      <label class="full"><span>ไฟล์ CSV (UTF-8)</span><input id="csvFile" type="file" accept=".csv,text/csv"></label></div>
+    <div class="actions"><button class="btn primary" id="importButton" type="button" onclick="importCsv()">ตรวจสอบและนำเข้า</button><button class="btn secondary" id="requestButton" type="button" onclick="requestAccess()">ขอสิทธิ์ผู้ช่วยดูแล</button></div>
+  </section>
 
   <section class="card">
     <h2 id="formTitle">เพิ่มข้อมูลรายปี</h2>
@@ -65,7 +72,9 @@
       renderSummary();
       fillSelect('district_code',state.bootstrap.districts,'เลือกอำเภอ');
       fillSelect('crop_code',state.bootstrap.crops,'เลือกชนิดพืช');
+      fillSelect('importCrop',state.bootstrap.crops,'เลือกชนิดพืช');
       fillSelect('month_number',state.bootstrap.months,'เลือกเดือน');
+      await refreshAccess();
       await loadRecords(1);
     }catch(error){notify(error.message,true)}
   }
@@ -153,6 +162,10 @@
     busy(true);try{const r=await call('createFullBackup');notify(`สำรองสำเร็จ: ${r.name}`)}
     catch(error){notify(error.message,true)}finally{busy(false)}
   }
+  async function refreshAccess(){try{const a=await call('getAdminAccess');$('accessInfo').textContent=`บัญชี ${a.email||'ไม่พบอีเมล'} · สิทธิ์ ${a.role}`;$('importButton').disabled=!a.canImport;$('requestButton').classList.toggle('hidden',a.role!=='viewer'&&a.role!=='rejected')}catch(e){$('accessInfo').textContent=e.message;$('importButton').disabled=true}}
+  async function requestAccess(){try{const name=prompt('ชื่อผู้ขอสิทธิ์ผู้ช่วยดูแลระบบ:','');if(!name)return;await call('requestAssistantAdmin',name);notify('ส่งคำขอแล้ว รอผู้ดูแลหลักอนุมัติ');await refreshAccess()}catch(e){notify(e.message,true)}}
+  function readTextFile(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(new Error('อ่านไฟล์ไม่สำเร็จ'));reader.readAsText(file,'UTF-8')})}
+  async function importCsv(){const file=$('csvFile').files[0];if(!file)return notify('กรุณาเลือกไฟล์ CSV',true);busy(true);try{const crop=state.bootstrap.crops.find(x=>String(x.code)===$('importCrop').value);const r=await call('importCsvV5',{kind:$('importKind').value,csv:await readTextFile(file),cropCode:crop&&crop.code,cropName:crop&&crop.name,metricType:$('metricType').value,sourceFile:file.name});notify(`นำเข้าสำเร็จ ${r.rows} แถว · Batch ${r.batchId}`);$('csvFile').value=''}catch(e){notify(e.message,true)}finally{busy(false)}}
   init();
 </script>
 </body>

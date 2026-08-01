@@ -2,12 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   aggregateDistrictYearMetric,
+  availableYearsForCrop,
   calculateCropShares,
   calculateKpis,
   canonicalCropName,
   normalizeCropId,
   normalizeDataStatus,
   normalizeQualityStatus,
+  reconcileYearSelection,
   selectYearFromChart,
   toggleYearSelection,
   yoy,
@@ -24,6 +26,17 @@ test("year selection supports non-contiguous years and always keeps one year",()
 test("clicking a bar activates only the selected year",()=>{
   assert.deepEqual(selectYearFromChart(2565),[2565]);
   assert.deepEqual(selectYearFromChart(Number.NaN),[]);
+});
+test("crop year availability keeps only years that have records",()=>{
+  const records=[
+    {crop_id:"rice",year_be:2564},
+    {crop_id:"rice",year_be:2565},
+    {crop_id:"rice",year_be:2564},
+    {crop_id:"maize",year_be:2566},
+  ];
+  assert.deepEqual(availableYearsForCrop(records,"rice"),[2565,2564]);
+  assert.deepEqual(reconcileYearSelection([2566,2565],[2565,2564]),[2565]);
+  assert.deepEqual(reconcileYearSelection([2566],[2565,2564]),[2565]);
 });
 test("crop shares use the planted-area total from every crop in the year",()=>{
   const rows=[

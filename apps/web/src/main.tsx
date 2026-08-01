@@ -1,629 +1,88 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {createRoot} from "react-dom/client";
 import {init, use as registerECharts, type EChartsCoreOption} from "echarts/core";
-import {BarChart, PieChart} from "echarts/charts";
+import {BarChart, LineChart} from "echarts/charts";
 import {GridComponent, LegendComponent, TooltipComponent} from "echarts/components";
 import {CanvasRenderer} from "echarts/renderers";
-import {
-  aggregateDistrictYearMetric,
-  calculateCropShares,
-  calculateKpis,
-  cropCatalog,
-  cropColors,
-  selectYearFromChart,
-  toggleYearSelection,
-  yoy,
-} from "@kpp/shared";
-import {
-  bundledSnapshot,
-  loadDashboardData,
-  sheetName,
-  spreadsheetUrl,
-  type DashboardData,
-  type DashboardPayload,
-} from "./dataSource";
+import {adminSpreadsheetUrl, economicCrops, officeDistricts, officeTopics, officeTotals, sourceSpreadsheetUrl, type DistrictOfficeRecord, type OfficeTopicId} from "./officeData";
+import {bundledRegistration, loadRegistrationData, registrationCrops, type RegistrationMetric, type RegistrationRecord} from "./registrationData";
 import "./styles.css";
 
-registerECharts([BarChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
+registerECharts([BarChart, LineChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
+const nf = new Intl.NumberFormat("th-TH",{maximumFractionDigits:1});
+const monthNames=["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
 
-type Payload = DashboardPayload;
-type Metric = "planted" | "harvested" | "production" | "weightedYield";
-const numberFormat = new Intl.NumberFormat("th-TH", {maximumFractionDigits: 0});
-const decimalFormat = new Intl.NumberFormat("th-TH", {maximumFractionDigits: 1});
-const percentFormat = new Intl.NumberFormat("th-TH", {style: "percent", maximumFractionDigits: 1});
-const dateFormat = new Intl.DateTimeFormat("th-TH", {dateStyle: "medium", timeStyle: "short"});
-const appVersion = "4.4.3";
-const cropPalette = ["#16835e", "#2457c5", "#f2a33a", "#9a62c7", "#e05b72", "#6e7e45", "#d4b22c", "#4f92a6", "#e37d42"];
-const yearPalette = ["#16835e", "#2457c5", "#e7a124", "#9a62c7", "#df5c73", "#34889b", "#8d7039", "#5a7d3c", "#d6743f", "#5571a7", "#9c5678"];
-type FontSize = "normal" | "large" | "xlarge";
-
-const metricMeta: Record<Metric, {label: string; unit: string}> = {
-  planted: {label: "เนื้อที่เพาะปลูก", unit: "ไร่"},
-  harvested: {label: "เนื้อที่เก็บเกี่ยว", unit: "ไร่"},
-  production: {label: "ผลผลิต", unit: "ตัน"},
-  weightedYield: {label: "ผลผลิตเฉลี่ย", unit: "กก./ไร่"},
-};
-
-const formatNumber = (value: number | null) => value === null ? "—" : numberFormat.format(value);
-const compactNumber = (value: number) => value >= 1_000_000
-  ? `${decimalFormat.format(value / 1_000_000)}M`
-  : value >= 1_000 ? `${decimalFormat.format(value / 1_000)}K` : numberFormat.format(value);
-
-function Chart({option, label, className = "", onBarYearSelect}: {
-  option: EChartsCoreOption;
-  label: string;
-  className?: string;
-  onBarYearSelect?: (year: number) => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!ref.current) return;
-    const chart = init(ref.current);
-    chart.setOption(option);
-    if (onBarYearSelect) {
-      chart.on("click", params => {
-        if (params.seriesType !== "bar") return;
-        const year = Number(params.seriesId);
-        if (Number.isInteger(year)) onBarYearSelect(year);
-      });
-      chart.getZr().setCursorStyle("pointer");
-    }
-    const observer = new ResizeObserver(() => chart.resize());
-    observer.observe(ref.current);
-    return () => {
-      observer.disconnect();
-      chart.dispose();
-    };
-  }, [onBarYearSelect, option]);
-  return <div ref={ref} className={`chart ${className}`} role="img" aria-label={label}/>;
+function Chart({option,label}:{option:EChartsCoreOption;label:string}){
+  const ref=useRef<HTMLDivElement>(null);
+  useEffect(()=>{if(!ref.current)return;const chart=init(ref.current);chart.setOption(option);const observer=new ResizeObserver(()=>chart.resize());observer.observe(ref.current);return()=>{observer.disconnect();chart.dispose();};},[option]);
+  return <div ref={ref} className="chart" role="img" aria-label={label}/>;
 }
 
-function KpiCard({metric, value, detail, tone}: {
-  metric: Metric;
-  value: number | null;
-  detail: string;
-  tone: string;
-}) {
-  const meta = metricMeta[metric];
-  return <article className={`kpi-card ${tone}`}>
-    <div className="kpi-label"><span className="kpi-dot"/>{meta.label}</div>
-    <div className="kpi-value">{formatNumber(value)}<small>{meta.unit}</small></div>
-    <p>{detail}</p>
-  </article>;
-}
+type Kpi={label:string;value:number;unit:string;note?:string};
+const sum=(rows:DistrictOfficeRecord[],key:keyof DistrictOfficeRecord)=>rows.reduce((total,row)=>total+Number(row[key]||0),0);
 
-function ChangeValue({value}: {value: number | null}) {
-  if (value === null) return <span className="trend neutral">—</span>;
-  if (value === 0) return <span className="trend neutral">0%</span>;
-  const positive = value > 0;
-  return <span
-    className={`trend ${positive ? "positive" : "negative"}`}
-    aria-label={`${positive ? "เพิ่มขึ้น" : "ลดลง"} ${percentFormat.format(Math.abs(value))}`}
-  >
-    <span className="trend-arrow" aria-hidden="true">{positive ? "↑" : "↓"}</span>
-    <span aria-hidden="true">{positive ? "+" : "−"}{percentFormat.format(Math.abs(value))}</span>
-  </span>;
-}
+function App(){
+  const [topic,setTopic]=useState<OfficeTopicId>("overview");
+  const [year,setYear]=useState(2568);
+  const [district,setDistrict]=useState("all");
+  const [crop,setCrop]=useState("rice_main");
+  const [economicCrop,setEconomicCrop]=useState<keyof DistrictOfficeRecord>("mainRice");
+  const [metric,setMetric]=useState<RegistrationMetric>("planted");
+  const [week,setWeek]=useState("all");
+  const [registration,setRegistration]=useState<RegistrationRecord[]>(bundledRegistration);
+  const [registrationLive,setRegistrationLive]=useState(false);
+  useEffect(()=>{void loadRegistrationData().then(result=>{setRegistration(result.records);setRegistrationLive(result.live);});},[]);
 
-function App() {
-  const [data, setData] = useState<Payload>(bundledSnapshot);
-  const [connection, setConnection] = useState<DashboardData>({
-    payload: bundledSnapshot,
-    source: "snapshot",
-    sourceLabel: "ชุดข้อมูลสำรอง",
-    fetchedAt: bundledSnapshot.meta.generated_at,
-    warning: "กำลังตรวจสอบข้อมูลล่าสุดจาก Google Sheets",
-  });
-  const [loadError, setLoadError] = useState("");
-  const [selectedYears, setSelectedYears] = useState<number[]>([]);
-  const [crop, setCrop] = useState<string>(cropCatalog[0][0]);
-  const [district, setDistrict] = useState("all");
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [chartSelectionNotice, setChartSelectionNotice] = useState("");
-  const [fontSize, setFontSize] = useState<FontSize>(() => {
-    try {
-      const saved = window.localStorage.getItem("kpp-font-size");
-      return saved === "large" || saved === "xlarge" ? saved : "normal";
-    } catch {
-      return "normal";
-    }
-  });
+  const rows=useMemo(()=>district==="all"?officeDistricts:officeDistricts.filter(row=>row.code===district),[district]);
+  const selectedDistrict=officeDistricts.find(row=>row.code===district)?.name||"ทั้งจังหวัด";
+  const selectedTopic=officeTopics.find(item=>item.id===topic)!;
+  const registrationRows=useMemo(()=>registration.filter(row=>row.yearCe+543===year&&row.cropId===crop&&row.metric===metric&&(district==="all"||row.districtCode===district)&&(week==="all"||row.week===Number(week))),[registration,year,crop,metric,district,week]);
+  const weeks=[...new Set(registration.filter(row=>row.yearCe+543===year&&row.cropId===crop&&row.metric===metric).map(row=>row.week))].sort((a,b)=>a-b);
+  const officialTotal=useCallback((key:keyof DistrictOfficeRecord)=>district==="all"&&key in officeTotals?Number(officeTotals[key as keyof typeof officeTotals]):sum(rows,key),[district,rows]);
 
-  useEffect(() => {
-    document.documentElement.dataset.fontSize = fontSize;
-    try {
-      window.localStorage.setItem("kpp-font-size", fontSize);
-    } catch {
-      // Controls remain usable for this session if storage is unavailable.
-    }
-  }, [fontSize]);
+  const kpis=useMemo<Kpi[]>(()=>{
+    if(topic==="crops")return[{label:"พื้นที่พืชที่เลือก",value:officialTotal(economicCrop),unit:"ไร่",note:selectedDistrict},{label:"ข้าวนาปี",value:officialTotal("mainRice"),unit:"ไร่"},{label:"ข้าวนาปรัง",value:officialTotal("offRice"),unit:"ไร่"},{label:"ข้าวโพด รุ่น 1–2",value:officialTotal("maize1")+officialTotal("maize2"),unit:"ไร่"}];
+    if(topic==="learning")return[{label:"ศูนย์หลัก ศพก.",value:district==="all"?11:1,unit:"ศูนย์"},{label:"ศูนย์เครือข่าย",value:sum(rows,"learningNetworks"),unit:"ศูนย์"},{label:"อำเภอที่มีศูนย์หลัก",value:district==="all"?11:1,unit:"อำเภอ"},{label:"เครือข่ายเฉลี่ย",value:sum(rows,"learningNetworks")/rows.length,unit:"ศูนย์/อำเภอ"}];
+    if(topic==="organizations")return[{label:"วิสาหกิจชุมชน",value:sum(rows,"communityEnterprises"),unit:"แห่ง"},{label:"สมาชิกวิสาหกิจชุมชน",value:sum(rows,"enterpriseMembers"),unit:"ราย"},{label:"Smart Farmer",value:district==="all"?officeTotals.smartFarmers:130,unit:"ราย"},{label:"Young Smart Farmer",value:district==="all"?officeTotals.youngSmartFarmers:0,unit:"ราย"}];
+    if(topic==="largeplots")return[{label:"แปลงใหญ่",value:sum(rows,"largePlots"),unit:"แปลง"},{label:"อำเภอครอบคลุม",value:rows.filter(r=>r.largePlots>0).length,unit:"อำเภอ"},{label:"เฉลี่ยต่ออำเภอ",value:sum(rows,"largePlots")/rows.length,unit:"แปลง"},{label:"สัดส่วนสูงสุด",value:Math.max(...rows.map(r=>r.largePlots)),unit:"แปลง/อำเภอ"}];
+    if(topic==="protection")return[{label:"ศูนย์จัดการศัตรูพืช",value:district==="all"?officeTotals.pestCenters:4,unit:"ศูนย์"},{label:"แปลงติดตามศัตรูพืช",value:sum(rows,"pestMonitoringPlots"),unit:"แปลง"},{label:"คลินิกพืช",value:district==="all"?11:1,unit:"จุด"},{label:"หมอพืชชุมชน",value:district==="all"?52:0,unit:"ราย"}];
+    if(topic==="personnel")return[{label:"บุคลากรรวม",value:district==="all"?officeTotals.personnel:sum(rows,"personnel"),unit:"ราย"},{label:"สำนักงานเกษตรอำเภอ",value:district==="all"?11:1,unit:"แห่ง"},{label:"บุคลากรระดับจังหวัด",value:district==="all"?28:0,unit:"ราย"},{label:"บุคลากรระดับอำเภอ",value:district==="all"?74:sum(rows,"personnel"),unit:"ราย"}];
+    if(topic==="projects")return[{label:"โครงการคลินิกเกษตรเคลื่อนที่",value:district==="all"?4:0,unit:"พื้นที่"},{label:"แปลงต้นแบบระบบน้ำ",value:district==="all"?2:0,unit:"แปลง"},{label:"อำเภอเป้าหมาย",value:district==="all"?4:0,unit:"อำเภอ"},{label:"ศูนย์เรียนรู้สนับสนุน",value:sum(rows,"learningNetworks"),unit:"ศูนย์"}];
+    if(topic==="registration")return[{label:metric==="planted"?"เนื้อที่ปลูก":"เนื้อที่เก็บเกี่ยว",value:registrationRows.reduce((s,r)=>s+r.areaRai,0),unit:"ไร่"},{label:"ครัวเรือน",value:registrationRows.reduce((s,r)=>s+r.households,0),unit:"ครัวเรือน"},{label:"แปลง",value:registrationRows.reduce((s,r)=>s+r.plots,0),unit:"แปลง"},{label:"ช่วงข้อมูล",value:weeks.length,unit:"สัปดาห์"}];
+    return[{label:"ครัวเรือนเกษตรกร",value:officialTotal("households"),unit:"ครัวเรือน"},{label:"พื้นที่ทำการเกษตร",value:officialTotal("agriculturalArea"),unit:"ไร่"},{label:"ศูนย์เครือข่าย ศพก.",value:officialTotal("learningNetworks"),unit:"ศูนย์"},{label:"แปลงใหญ่",value:officialTotal("largePlots"),unit:"แปลง"}];
+  },[topic,rows,economicCrop,selectedDistrict,district,registrationRows,metric,weeks.length,officialTotal]);
 
-  const refreshData = async () => {
-    setIsRefreshing(true);
-    setLoadError("");
-    try {
-      const result = await loadDashboardData();
-      setConnection(result);
-      setData(result.payload);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "ไม่สามารถโหลดข้อมูลได้";
-      setLoadError(message);
-      setConnection(current => ({
-        ...current,
-        warning: `โหลดข้อมูลล่าสุดไม่สำเร็จ: ${message}`,
-      }));
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
+  const chartMetric=topic==="crops"?economicCrop:topic==="learning"?"learningNetworks":topic==="organizations"?"communityEnterprises":topic==="largeplots"?"largePlots":topic==="protection"?"pestMonitoringPlots":topic==="personnel"?"personnel":"agriculturalArea";
+  const districtChart=useMemo<EChartsCoreOption>(()=>({tooltip:{trigger:"axis",axisPointer:{type:"shadow"}},grid:{left:135,right:30,top:20,bottom:35},xAxis:{type:"value"},yAxis:{type:"category",data:officeDistricts.map(r=>r.name).reverse(),axisLabel:{fontSize:11}},series:[{type:"bar",data:officeDistricts.map(r=>Number(r[chartMetric])).reverse(),itemStyle:{color:"#1d7654",borderRadius:[0,6,6,0]}}]}),[chartMetric]);
+  const weeklyChart=useMemo<EChartsCoreOption>(()=>({tooltip:{trigger:"axis"},grid:{left:65,right:25,top:30,bottom:40},xAxis:{type:"category",data:weeks.map(w=>`สัปดาห์ ${w}`)},yAxis:{type:"value",name:"ไร่"},series:[{type:"line",smooth:true,symbolSize:9,lineStyle:{width:4,color:"#d79a2b"},itemStyle:{color:"#d79a2b"},areaStyle:{color:"#f6e7c8"},data:weeks.map(w=>registration.filter(r=>r.yearCe+543===year&&r.cropId===crop&&r.metric===metric&&r.week===w&&(district==="all"||r.districtCode===district)).reduce((s,r)=>s+r.areaRai,0))}]}),[weeks,registration,year,crop,metric,district]);
 
-  useEffect(() => {
-    void refreshData();
-  }, []);
+  return <div className="site-shell">
+    <header className="site-header"><div className="brand"><div className="brand-mark">กพ</div><div><small>สำนักงานเกษตรจังหวัดกำแพงเพชร</small><h1>ระบบข้อมูลสารสนเทศด้านการเกษตร</h1></div></div><div className="header-actions"><span className="data-status"><i/>Google Sheets · ข้อมูลเผยแพร่</span><button onClick={()=>setTopic("admin")}>เข้าสู่ระบบ Admin</button></div></header>
+    <section className="filter-header"><div><span>มุมมองข้อมูล</span><strong>{selectedTopic.title}</strong></div><label>ปี พ.ศ.<select value={year} onChange={e=>setYear(Number(e.target.value))}><option value="2568">2568</option><option value="2569">2569</option></select></label><label>พื้นที่<select value={district} onChange={e=>setDistrict(e.target.value)}><option value="all">ทั้งจังหวัด</option>{officeDistricts.map(r=><option key={r.code} value={r.code}>{r.name}</option>)}</select></label><a href={sourceSpreadsheetUrl} target="_blank" rel="noreferrer">แหล่งข้อมูล ↗</a></section>
 
-  const published = useMemo(
-    () => data?.records.filter(record => record.data_status === "published") ?? [],
-    [data],
-  );
-  const options = useMemo(() => data ? {
-    years: [...new Set(published.map(record => record.year_be))].sort((a, b) => b - a),
-    crops: cropCatalog.map(([id, fallbackName]) => [
-      id,
-      published.find(record => record.crop_id === id)?.crop_name || fallbackName,
-    ] as [string, string]),
-    districts: [...new Set(published.map(record => record.district_name))].sort((a, b) => a.localeCompare(b, "th")),
-  } : null, [data, published]);
+    <main className="page">
+      <section className="intro"><div><p>AGRICULTURAL INFORMATION HUB</p><h2>ข้อมูลพื้นฐานจังหวัดกำแพงเพชร</h2><span>สรุปสถานการณ์สำคัญ ครอบคลุมเศรษฐกิจการเกษตร องค์กรเกษตรกร ศูนย์เรียนรู้ อารักขาพืช โครงการ และบุคลากร สามารถเลือกดูได้ทั้งระดับจังหวัดและ 11 อำเภอ</span></div><div className="year-stamp"><small>ปีข้อมูล</small><strong>{year}</strong><span>{selectedDistrict}</span></div></section>
 
-  useEffect(() => {
-    if (!options) return;
-    setSelectedYears(current => {
-      const available = current.filter(year => options.years.includes(year));
-      return available.length ? available : options.years.slice(0, 1);
-    });
-    setDistrict(current => current === "all" || options.districts.includes(current) ? current : "all");
-    setCrop(current => options.crops.some(([cropId]) => cropId === current) ? current : cropCatalog[0][0]);
-  }, [options]);
+      <section className="topic-grid" aria-label="เลือกประเด็นข้อมูล">{officeTopics.map(item=><button key={item.id} className={topic===item.id?"topic-card active":"topic-card"} onClick={()=>setTopic(item.id)}><span className="topic-icon">{item.icon}</span><strong>{item.title}</strong><small>{item.description}</small></button>)}</section>
 
-  const activateYearFromChart = useCallback((year: number) => {
-    setSelectedYears(selectYearFromChart(year));
-    setChartSelectionNotice(`กำลังแสดงข้อมูลเฉพาะ พ.ศ. ${year} จากการเลือกบนกราฟ`);
-  }, []);
-
-  const context = useMemo(() => published.filter(record =>
-    record.crop_id === crop
-    && (district === "all" || record.district_name === district)
-  ), [published, crop, district]);
-
-  const selectedRecords = useMemo(
-    () => context.filter(record => selectedYears.includes(record.year_be)),
-    [context, selectedYears],
-  );
-  const selectedKpis = useMemo(() => calculateKpis(selectedRecords), [selectedRecords]);
-  const selectedYearSet = useMemo(() => new Set(selectedYears), [selectedYears]);
-  const selectedYearsAscending = useMemo(() => selectedYears.slice().sort((a, b) => a - b), [selectedYears]);
-
-  const allYearly = useMemo(() => options?.years.slice().sort((a, b) => a - b).map(year => {
-    const records = context.filter(record => record.year_be === year);
-    return {
-      year,
-      kpis: calculateKpis(records),
-      issues: records.filter(record => record.quality_status !== "pass").length,
-    };
-  }) ?? [], [context, options]);
-
-  const selectedYearly = useMemo(
-    () => allYearly.filter(item => selectedYearSet.has(item.year)),
-    [allYearly, selectedYearSet],
-  );
-  const chartDistricts = useMemo(
-    () => district === "all" ? options?.districts ?? [] : [district],
-    [district, options],
-  );
-  const plantedByDistrictYear = useMemo(
-    () => aggregateDistrictYearMetric(
-      selectedRecords,
-      chartDistricts,
-      selectedYearsAscending,
-      "planted_area_rai",
-    ),
-    [selectedRecords, chartDistricts, selectedYearsAscending],
-  );
-  const productionByDistrictYear = useMemo(
-    () => aggregateDistrictYearMetric(
-      selectedRecords,
-      chartDistricts,
-      selectedYearsAscending,
-      "production_ton",
-    ),
-    [selectedRecords, chartDistricts, selectedYearsAscending],
-  );
-
-  const donutByYear = useMemo(() => selectedYearsAscending.map(year => {
-    const yearRecords = published.filter(record =>
-      record.year_be === year && (district === "all" || record.district_name === district)
-    );
-    const shares = calculateCropShares(yearRecords, options?.crops.map(([id]) => id) ?? []);
-    return {
-      year,
-      data: options?.crops.map(([id, name], index) => ({
-        name,
-        value: shares.find(item => item.cropId === id)?.planted ?? 0,
-        sharePercent: shares.find(item => item.cropId === id)?.percent ?? null,
-        itemStyle: {color: cropColors[id] ?? cropPalette[index % cropPalette.length]},
-        selected: crop === id,
-      })).filter(item => item.value > 0) ?? [],
-    };
-  }), [selectedYearsAscending, published, district, options, crop]);
-
-  if (options && options.years.length === 0) return <main className="loading error-state">
-    <strong>ไม่พบข้อมูลที่เผยแพร่</strong>
-    <p>กรุณาตรวจสถานะระเบียนใน Google Sheets แล้วลองโหลดข้อมูลอีกครั้ง</p>
-    <button type="button" onClick={() => void refreshData()} disabled={isRefreshing}>
-      {isRefreshing ? "กำลังโหลด…" : "ลองโหลดใหม่"}
-    </button>
-  </main>;
-
-  if (!options || selectedYears.length === 0) return <main className="loading">
-    <span className="loader"/><p>กำลังเตรียม Dashboard…</p>
-  </main>;
-
-  const selectedCrop = options.crops.find(([id]) => id === crop)?.[1] ?? cropCatalog[0][1];
-  const selectedDistrict = district === "all" ? "ทุกอำเภอ" : district;
-  const yearLabel = selectedYearsAscending.length === 1
-    ? `พ.ศ. ${selectedYearsAscending[0]}`
-    : `พ.ศ. ${selectedYearsAscending.join(", ")}`;
-  const hasFilters = selectedYears.length !== 1
-    || selectedYears[0] !== options.years[0]
-    || crop !== cropCatalog[0][0]
-    || district !== "all";
-  const warningCount = selectedRecords.filter(record => record.quality_status !== "pass").length;
-  const freshness = dateFormat.format(new Date(connection.fetchedAt));
-  const liveConnection = connection.source === "google-sheets";
-  const publishedYears = options.years.slice().sort((a, b) => a - b);
-  const sourceSummary = `${sheetName} · ${numberFormat.format(connection.payload.meta.annual_record_count)} ระเบียน · พ.ศ. ${publishedYears[0]}–${publishedYears.at(-1)}`;
-
-  const toggleYear = (year: number) => {
-    setSelectedYears(current => toggleYearSelection(current, year));
-    setChartSelectionNotice("");
-  };
-  const reset = () => {
-    setSelectedYears(options.years.slice(0, 1));
-    setCrop(cropCatalog[0][0]);
-    setDistrict("all");
-    setChartSelectionNotice("");
-  };
-
-  const commonAxis = {
-    axisLine: {lineStyle: {color: "#dce4de"}},
-    axisLabel: {color: "#68766e"},
-    axisTick: {show: false},
-  };
-  const chartFontScale = fontSize === "xlarge" ? 1.3 : fontSize === "large" ? 1.15 : 1;
-  const createDistrictBarOption = (
-    seriesByYear: typeof plantedByDistrictYear,
-    unit: "ไร่" | "ตัน",
-  ): EChartsCoreOption => ({
-    animationDuration: 650,
-    color: yearPalette,
-    tooltip: {
-      trigger: "axis",
-      axisPointer: {type: "shadow"},
-      valueFormatter: (value: unknown) => `${numberFormat.format(Number(value))} ${unit}`,
-    },
-    legend: {
-      show: selectedYearsAscending.length > 1,
-      top: 0,
-      type: "scroll",
-      itemWidth: 12,
-      itemHeight: 8,
-      textStyle: {color: "#5d6b63", fontSize: Math.round(10 * chartFontScale)},
-    },
-    grid: {
-      left: 70,
-      right: 24,
-      bottom: chartDistricts.length > 4 ? 92 : 55,
-      top: selectedYearsAscending.length > 1 ? 48 : 24,
-    },
-    xAxis: {
-      type: "category",
-      data: chartDistricts,
-      ...commonAxis,
-      axisLabel: {
-        color: "#68766e",
-        fontSize: Math.round(11 * chartFontScale),
-        interval: 0,
-        rotate: chartDistricts.length > 4 ? 32 : 0,
-        width: 105,
-        overflow: "truncate",
-      },
-    },
-    yAxis: {
-      type: "value",
-      splitLine: {lineStyle: {color: "#edf1ee"}},
-      axisLabel: {
-        color: "#68766e",
-        fontSize: Math.round(11 * chartFontScale),
-        formatter: (value: number) => compactNumber(value),
-      },
-    },
-    series: seriesByYear.map((item, index) => ({
-      id: String(item.year),
-      name: `พ.ศ. ${item.year}`,
-      type: "bar",
-      barMaxWidth: selectedYearsAscending.length === 1 ? 48 : 30,
-      barGap: "15%",
-      data: item.values,
-      itemStyle: {
-        color: yearPalette[index % yearPalette.length],
-        borderRadius: [5, 5, 0, 0],
-      },
-      emphasis: {
-        focus: "series",
-        itemStyle: {
-          shadowBlur: 10,
-          shadowColor: "rgba(18, 63, 50, .28)",
-          borderColor: "#123f32",
-          borderWidth: 2,
-        },
-      },
-    })),
-  });
-  const plantedBarOption = createDistrictBarOption(plantedByDistrictYear, "ไร่");
-  const productionBarOption = createDistrictBarOption(productionByDistrictYear, "ตัน");
-
-  return <div className="app">
-    <section className="accessibility-bar" aria-label="เครื่องมือช่วยการเข้าถึง">
-      <span>การแสดงผล</span>
-      <div className="font-controls" role="group" aria-label="ปรับขนาดตัวอักษร">
-        <span className="font-label">ขนาดตัวอักษร</span>
-        <button type="button" className={fontSize === "normal" ? "active" : ""} aria-pressed={fontSize === "normal"} onClick={() => setFontSize("normal")} title="ตัวอักษรขนาดมาตรฐาน">ก</button>
-        <button type="button" className={fontSize === "large" ? "active" : ""} aria-pressed={fontSize === "large"} onClick={() => setFontSize("large")} title="ตัวอักษรขนาดใหญ่">ก+</button>
-        <button type="button" className={fontSize === "xlarge" ? "active" : ""} aria-pressed={fontSize === "xlarge"} onClick={() => setFontSize("xlarge")} title="ตัวอักษรขนาดใหญ่มาก">ก++</button>
-      </div>
-    </section>
-    <header className="topbar">
-      <a className="brand" href="#overview" aria-label="กลับไปยังภาพรวม">
-        <div className="mark">กพ</div>
-        <div><strong>KPP Agri Data</strong><span>สำนักงานเกษตรจังหวัดกำแพงเพชร</span></div>
-      </a>
-      <button className="menu-toggle" onClick={() => setMenuOpen(open => !open)} aria-expanded={menuOpen} aria-label="เปิดเมนู">☰</button>
-      <nav className={menuOpen ? "open" : ""} aria-label="เมนูหลัก">
-        <a className="active" href="#overview" onClick={() => setMenuOpen(false)}>สถานการณ์</a>
-        <a href="#charts" onClick={() => setMenuOpen(false)}>กราฟ</a>
-        <a href="#summary" onClick={() => setMenuOpen(false)}>ตารางข้อมูล</a>
-        <a href="#admin" onClick={() => setMenuOpen(false)}>Admin</a>
-      </nav>
-      <a className="admin-button" href={spreadsheetUrl} target="_blank" rel="noreferrer">เข้าสู่ระบบ Admin <span>↗</span></a>
-    </header>
-
-    <main id="overview">
-      <section className="year-filter-card" aria-label="ตัวกรองปี พ.ศ.">
-        <div className="year-filter-copy">
-          <p className="eyebrow">ตัวกรองข้อมูล</p>
-          <h1>เลือกปี พ.ศ.</h1>
-          <p>เลือกได้ทีละ 1 ปีหรือหลายปี โดยไม่จำเป็นต้องเรียงต่อกัน</p>
-        </div>
-        <div className="year-actions">
-          <button type="button" onClick={() => setSelectedYears(options.years)}>เลือกทุกปี</button>
-          <button type="button" onClick={() => setSelectedYears(options.years.slice(0, 1))}>เฉพาะปีล่าสุด</button>
-        </div>
-        <div className="year-options">
-          {options.years.map(year => <button
-            type="button"
-            key={year}
-            className={selectedYearSet.has(year) ? "selected" : ""}
-            aria-pressed={selectedYearSet.has(year)}
-            onClick={() => toggleYear(year)}
-          ><span className="check">{selectedYearSet.has(year) ? "✓" : ""}</span>{year}</button>)}
-        </div>
-        <div className="filter-meta">
-          <span>เลือกแล้ว <strong>{selectedYears.length}</strong> ปี</span>
-          <span>{selectedCrop} · {selectedDistrict}</span>
-          <span>อัปเดต {freshness}</span>
-          <span className="version-badge">Dashboard v{appVersion}</span>
-          <button type="button" onClick={reset} disabled={!hasFilters}>ล้างตัวกรองทั้งหมด</button>
-        </div>
-      </section>
-
-      <aside className={`data-connection ${liveConnection ? "live" : "fallback"}`} role="status" aria-live="polite">
-        <span className="connection-dot" aria-hidden="true"/>
-        <div className="connection-copy">
-          <strong>{liveConnection ? "เชื่อมต่อข้อมูลสดจาก Google Sheets สำเร็จ" : `กำลังใช้ ${connection.sourceLabel}`}</strong>
-          <span>{sourceSummary} · ตรวจสอบล่าสุด {freshness}</span>
-          {(connection.warning || loadError) && <small>{connection.warning || loadError}</small>}
-        </div>
-        <div className="connection-actions">
-          <a href={spreadsheetUrl} target="_blank" rel="noreferrer">เปิด Google Sheet ↗</a>
-          <button type="button" onClick={() => void refreshData()} disabled={isRefreshing}>
-            {isRefreshing ? "กำลังโหลด…" : "โหลดข้อมูลใหม่"}
-          </button>
-        </div>
-      </aside>
-
-      <div className="dashboard-layout">
-        <aside className="crop-sidebar" aria-label="เลือกชนิดพืช">
-          <div className="sidebar-head"><span>ชนิดพืช</span><small>9 ชนิด · เลือก 1</small></div>
-          {options.crops.map(([id, name], index) => <button
-            type="button"
-            key={id}
-            className={`crop-bullet ${crop === id ? "active" : ""}`}
-            onClick={() => setCrop(id)}
-          ><i style={{backgroundColor: cropColors[id] ?? cropPalette[index % cropPalette.length]}}/>{name}</button>)}
-          <label className="district-filter">
-            <span>พื้นที่</span>
-            <select value={district} onChange={event => setDistrict(event.target.value)}>
-              <option value="all">ทุกอำเภอ</option>
-              {options.districts.map(name => <option key={name} value={name}>{name}</option>)}
-            </select>
-          </label>
-        </aside>
-
-        <div className="dashboard-content">
-          <section className="section-block situation" aria-labelledby="situation-title">
-            <div className="section-title">
-              <div><span>ภาพรวมข้อมูล</span><h2 id="situation-title">สถานการณ์การผลิต</h2></div>
-              <p>{yearLabel} · {numberFormat.format(selectedRecords.length)} ระเบียน</p>
-            </div>
-            <div className="kpis">
-              <KpiCard metric="planted" value={selectedKpis.planted} detail={`รวม ${selectedYears.length} ปีที่เลือก`} tone="purple"/>
-              <KpiCard metric="harvested" value={selectedKpis.harvested} detail={`คิดเป็น ${selectedKpis.harvestRate === null ? "—" : percentFormat.format(selectedKpis.harvestRate)} ของเนื้อที่ปลูก`} tone="blue"/>
-              <KpiCard metric="production" value={selectedKpis.production} detail="ผลผลิตรวมภายใต้ตัวกรอง" tone="yellow"/>
-              <KpiCard metric="weightedYield" value={selectedKpis.weightedYield} detail="คำนวณแบบถ่วงน้ำหนักจากพื้นที่เก็บเกี่ยว" tone="orange"/>
-            </div>
-          </section>
-
-          <section className="chart-grid" id="charts">
-            <p className="chart-interaction-note" aria-live="polite">
-              <strong>{chartSelectionNotice || "เลือกข้อมูลจากกราฟได้"}</strong>
-              <span>คลิกแท่งหรือปุ่มปีใต้กราฟ เพื่อ Active และแสดงข้อมูลเฉพาะปีนั้นทั้ง Dashboard</span>
-            </p>
-            <article className="panel">
-              <div className="panel-title">
-                <div><span>BAR CHART · รายอำเภอ</span><h2>เนื้อที่เพาะปลูก (ไร่) แยกตามปี พ.ศ.</h2></div>
-                <div className="record-count">{chartDistricts.length} อำเภอ · {selectedYearsAscending.length} ปี</div>
-              </div>
-              <div className="district-chart-wrap">
-                <Chart className="district-chart" label={`กราฟแท่งเนื้อที่เพาะปลูก แยก ${chartDistricts.length} อำเภอ และ ${selectedYearsAscending.length} ปี คลิกแท่งเพื่อเลือกปี`} option={plantedBarOption} onBarYearSelect={activateYearFromChart}/>
-              </div>
-              <div className="chart-year-actions" role="group" aria-label="เลือกปีจากกราฟเนื้อที่เพาะปลูก">
-                {selectedYearsAscending.map(year => <button type="button" key={year} aria-pressed={selectedYearsAscending.length === 1} onClick={() => activateYearFromChart(year)}>พ.ศ. {year}</button>)}
-              </div>
-              <p className="chart-scroll-hint">เลื่อนกราฟในแนวนอนเพื่อดูข้อมูลทุกอำเภอ</p>
-            </article>
-            <article className="panel">
-              <div className="panel-title">
-                <div><span>BAR CHART · รายอำเภอ</span><h2>ผลผลิต (ตัน) แยกตามปี พ.ศ.</h2></div>
-                <div className="record-count">{chartDistricts.length} อำเภอ · {selectedYearsAscending.length} ปี</div>
-              </div>
-              <div className="district-chart-wrap">
-                <Chart className="district-chart" label={`กราฟแท่งผลผลิต แยก ${chartDistricts.length} อำเภอ และ ${selectedYearsAscending.length} ปี คลิกแท่งเพื่อเลือกปี`} option={productionBarOption} onBarYearSelect={activateYearFromChart}/>
-              </div>
-              <div className="chart-year-actions" role="group" aria-label="เลือกปีจากกราฟผลผลิต">
-                {selectedYearsAscending.map(year => <button type="button" key={year} aria-pressed={selectedYearsAscending.length === 1} onClick={() => activateYearFromChart(year)}>พ.ศ. {year}</button>)}
-              </div>
-              <p className="chart-scroll-hint">เลื่อนกราฟในแนวนอนเพื่อดูข้อมูลทุกอำเภอ</p>
-            </article>
-          </section>
-
-          <section className="panel donut-panel">
-            <div className="panel-title">
-              <div><span>DONUT GRAPH</span><h2>ร้อยละของเนื้อที่เพาะปลูก จำแนกตามชนิดพืชของแต่ละปี</h2></div>
-              <div className="record-count">ฐานคำนวณ: พืชทุกชนิดในปีนั้น</div>
-            </div>
-            <div className="donut-grid">
-              {donutByYear.map(item => <article className="donut-card" key={item.year}>
-                <h3>พ.ศ. {item.year}</h3>
-                {item.data.length ? <Chart className="donut-chart" label={`สัดส่วนเนื้อที่เพาะปลูก พ.ศ. ${item.year}`} option={{
-                  animationDuration: 600,
-                  tooltip: {
-                    trigger: "item",
-                    formatter: (params: unknown) => {
-                      const item = params as {name: string; value: number; data: {sharePercent: number | null}};
-                      const share = item.data.sharePercent === null ? "—" : percentFormat.format(item.data.sharePercent);
-                      return `${item.name}<br/>${numberFormat.format(item.value)} ไร่ (${share})`;
-                    },
-                  },
-                  legend: {
-                    bottom: 0,
-                    type: "scroll",
-                    itemWidth: 8,
-                    itemHeight: 8,
-                    textStyle: {color: "#637069", fontSize: Math.round(9 * chartFontScale)},
-                  },
-                  series: [{
-                    type: "pie",
-                    radius: ["48%", "70%"],
-                    center: ["50%", "42%"],
-                    minAngle: 2,
-                    padAngle: 1.5,
-                    selectedMode: "single",
-                    selectedOffset: 5,
-                    label: {show: false},
-                    itemStyle: {borderRadius: 4, borderColor: "#fff", borderWidth: 2},
-                    data: item.data,
-                  }],
-                }}/> : <div className="empty">ไม่มีข้อมูล</div>}
-              </article>)}
-            </div>
-          </section>
-
-          <section className="panel summary-panel" id="summary">
-            <div className="panel-title">
-              <div><span>ตารางข้อมูล</span><h2>สถานการณ์การผลิตรายปี</h2></div>
-              <div className="record-count">{selectedYearly.length} ปีที่เลือก</div>
-            </div>
-            <div className="table-wrap summary-table"><table>
-              <thead><tr>
-                <th>ปี พ.ศ.</th>
-                <th className="num">เนื้อที่ปลูก (ไร่)</th>
-                <th className="num">เนื้อที่เก็บเกี่ยว (ไร่)</th>
-                <th className="num">ผลผลิต (ตัน)</th>
-                <th className="num">ผลผลิตเฉลี่ย (กก./ไร่)</th>
-                <th className="num">เปรียบเทียบเนื้อที่ปลูก (ร้อยละ)</th>
-                <th className="num">เปรียบเทียบผลผลิต (ร้อยละ)</th>
-              </tr></thead>
-              <tbody>{selectedYearly.slice().reverse().map(item => {
-                const itemIndex = allYearly.findIndex(candidate => candidate.year === item.year);
-                const previous = itemIndex > 0 ? allYearly[itemIndex - 1] : null;
-                const plantedChange = previous ? yoy(item.kpis.planted, previous.kpis.planted) : null;
-                const productionChange = previous ? yoy(item.kpis.production, previous.kpis.production) : null;
-                return <tr key={item.year}>
-                  <td><strong>{item.year}</strong></td>
-                  <td className="num">{formatNumber(item.kpis.planted)}</td>
-                  <td className="num">{formatNumber(item.kpis.harvested)}</td>
-                  <td className="num">{formatNumber(item.kpis.production)}</td>
-                  <td className="num">{formatNumber(item.kpis.weightedYield)}</td>
-                  <td className="num delta-cell"><ChangeValue value={plantedChange}/></td>
-                  <td className="num delta-cell"><ChangeValue value={productionChange}/></td>
-                </tr>;
-              })}</tbody>
-            </table></div>
-            <p className="table-note">ร้อยละเปรียบเทียบคำนวณกับปีก่อนหน้าตามลำดับข้อมูลจริง แม้ไม่ได้เลือกปีก่อนหน้านั้นในตัวกรอง</p>
-          </section>
-
-          <section className="method">
-            <div>
-              <p className="eyebrow">ระเบียบวิธีและคุณภาพข้อมูล</p>
-              <h2>ตัวเลขที่อธิบายได้<br/>และตรวจสอบย้อนกลับได้</h2>
-              <p>ผลผลิตเฉลี่ยระดับรวมคำนวณจากผลผลิตรวม × 1,000 ÷ เนื้อที่เก็บเกี่ยวรวม ส่วน Donut ใช้เนื้อที่เพาะปลูกของพืชแต่ละชนิดหารด้วยเนื้อที่เพาะปลูกรวมทุกชนิดของปีเดียวกัน</p>
-            </div>
-            <div className="quality-card">
-              <span>รายการที่ควรตรวจสอบภายใต้ตัวกรอง</span>
-              <strong>{numberFormat.format(warningCount)}<small>ระเบียน</small></strong>
-              <p>{warningCount ? "ควรตรวจข้อมูลพื้นที่ ผลผลิต หรือหมายเหตุคุณภาพใน Google Sheets" : "ข้อมูลภายใต้ตัวกรองผ่านเงื่อนไขคุณภาพทั้งหมด"}</p>
-              <a href={spreadsheetUrl} target="_blank" rel="noreferrer">เปิดระบบจัดการข้อมูล <b>↗</b></a>
-            </div>
-          </section>
-
-          <section className="admin-panel" id="admin" aria-labelledby="admin-title">
-            <div>
-              <p className="eyebrow">ระบบหลังบ้านสำหรับเจ้าหน้าที่</p>
-              <h2 id="admin-title">Admin Data Manager</h2>
-              <p>จัดการข้อมูลรายปีและรายเดือนผ่าน Google Sheet ด้วยสิทธิ์บัญชีเจ้าหน้าที่ โดยไม่เปิดสิทธิ์เขียนข้อมูลจากหน้า Dashboard สาธารณะ</p>
-              <div className="admin-features">
-                <span>เพิ่มและแก้ไข</span><span>เก็บถาวรและกู้คืน</span><span>ลบพร้อมสำรอง</span><span>ตรวจข้อมูลซ้ำ</span><span>Audit Log</span><span>สำรอง Google Drive</span>
-              </div>
-            </div>
-            <div className="admin-access-card">
-              <span className="secure-badge">● ใช้สิทธิ์ Google Workspace</span>
-              <ol>
-                <li>เปิด Google Sheet ด้วยบัญชี Editor</li>
-                <li>เลือกเมนู “ระบบข้อมูลการเกษตร”</li>
-                <li>เลือก “เปิดระบบเพิ่ม/แก้ไข/ลบข้อมูล”</li>
-              </ol>
-              <a href={spreadsheetUrl} target="_blank" rel="noreferrer">เปิดระบบ Admin <b>↗</b></a>
-            </div>
-          </section>
-        </div>
-      </div>
+      {topic==="admin"?<AdminPanel/>:<>
+        <section className="content-heading"><div><small>{selectedTopic.icon} · ปี พ.ศ. {year}</small><h2>{selectedTopic.title}</h2><p>{selectedTopic.description} · {selectedDistrict}</p></div>{topic==="registration"&&<span className={registrationLive?"live-badge":"fallback-badge"}>{registrationLive?"ข้อมูลสดจาก Google Sheets":"กำลังใช้ข้อมูลสำรอง"}</span>}</section>
+        {year===2569&&topic!=="registration"?<div className="data-note">ข้อมูลพื้นฐานจากต้นทางยังเป็นปี 2568 ระบบจึงแสดงค่าล่าสุดที่เผยแพร่และระบุปีต้นทางไว้เพื่อป้องกันการตีความคลาดเคลื่อน</div>:null}
+        {topic==="crops"&&<div className="subfilters"><label>ชนิดพืช<select value={String(economicCrop)} onChange={e=>setEconomicCrop(e.target.value as keyof DistrictOfficeRecord)}>{economicCrops.map(([id,name])=><option value={id} key={id}>{name}</option>)}</select></label></div>}
+        {topic==="registration"&&<div className="subfilters"><label>ชนิดพืช<select value={crop} onChange={e=>{setCrop(e.target.value);setWeek("all");}}>{registrationCrops.map(([id,name])=><option value={id} key={id}>{name}</option>)}</select></label><label>ตัวชี้วัด<select value={metric} onChange={e=>setMetric(e.target.value as RegistrationMetric)}><option value="planted">เนื้อที่ปลูก</option><option value="harvested">เนื้อที่เก็บเกี่ยว</option></select></label><label>สัปดาห์<select value={week} onChange={e=>setWeek(e.target.value)}><option value="all">ทุกสัปดาห์</option>{weeks.map(w=><option key={w} value={w}>สัปดาห์ {w} · {monthNames[new Date(Date.UTC(year-543,0,4+(w-1)*7)).getUTCMonth()]}</option>)}</select></label></div>}
+        <section className="kpi-grid">{kpis.map((kpi,index)=><article key={kpi.label}><span>0{index+1}</span><small>{kpi.label}</small><strong>{nf.format(kpi.value)}</strong><p>{kpi.unit}{kpi.note?` · ${kpi.note}`:""}</p></article>)}</section>
+        {topic==="registration"&&registrationRows.length===0?<section className="empty-state"><strong>ยังไม่มีข้อมูลตามตัวกรอง</strong><p>เลือกปี ชนิดพืช หรือประเภทพื้นที่ใหม่ หรือให้ผู้ดูแลนำเข้าข้อมูลผ่านระบบ Admin</p><button onClick={()=>setTopic("admin")}>ไปยังระบบ Admin</button></section>:<section className="analytics-grid"><article className="panel"><div className="panel-title"><small>{topic==="registration"?"แนวโน้มรายสัปดาห์":"เปรียบเทียบเชิงพื้นที่"}</small><h3>{topic==="registration"?"สถานการณ์การขึ้นทะเบียน":"ข้อมูลรายอำเภอ"}</h3></div><Chart option={topic==="registration"?weeklyChart:districtChart} label="กราฟข้อมูลการเกษตรรายอำเภอ"/></article><article className="panel insight"><div className="panel-title"><small>INSIGHT</small><h3>ข้อสังเกตเพื่อการบริหาร</h3></div><Insights rows={rows} kpis={kpis}/></article></section>}
+      </>}
+      <footer><span>สำนักงานเกษตรจังหวัดกำแพงเพชร · ข้อมูลจาก Google Sheets</span><span>Dashboard v5.1.0</span></footer>
     </main>
-
-    <footer>
-      <div className="footer-brand"><div className="mark">กพ</div><div><strong>KPP Agri Data</strong><span>Dashboard สถานการณ์การผลิตพืช จังหวัดกำแพงเพชร</span></div></div>
-      <p>Dashboard v{appVersion} · Frontend: GitHub Pages · Database: Google Sheets · แหล่งข้อมูล: {connection.sourceLabel}</p>
-    </footer>
   </div>;
 }
+
+function Insights({rows,kpis}:{rows:DistrictOfficeRecord[];kpis:Kpi[]}){
+  const top=[...rows].sort((a,b)=>b.agriculturalArea-a.agriculturalArea)[0];
+  return <div className="insight-list"><div><span>01</span><p><strong>ขอบเขตข้อมูล</strong> แสดง {rows.length} อำเภอ ตามตัวกรองพื้นที่ที่เลือก</p></div><div><span>02</span><p><strong>ค่าหลักของประเด็น</strong> {kpis[0]?.label} รวม {nf.format(kpis[0]?.value||0)} {kpis[0]?.unit}</p></div><div><span>03</span><p><strong>พื้นที่เกษตรสูงสุดในมุมมอง</strong> {top?.name||"—"} {nf.format(top?.agriculturalArea||0)} ไร่</p></div><div><span>04</span><p><strong>การใช้งาน</strong> ใช้ประกอบการติดตามและวางแผน ควรตรวจวันที่ปรับปรุงในแหล่งข้อมูลก่อนอ้างอิงทางราชการ</p></div></div>;
+}
+
+function AdminPanel(){return <section className="admin-panel"><div className="admin-copy"><span className="secure-label">SECURE ADMIN WORKSPACE</span><h2>บริหารและนำเข้าข้อมูล</h2><p>ระบบ Admin ทำงานภายใน Google Sheets เพื่อยืนยันตัวตนด้วยบัญชี Google และป้องกันไม่ให้รหัสผ่านหรือสิทธิ์แก้ไขถูกเปิดเผยบน GitHub Pages</p><a className="admin-primary" href={adminSpreadsheetUrl} target="_blank" rel="noreferrer">เปิดระบบ Admin ใน Google Sheets ↗</a></div><div className="admin-actions"><article><span>01</span><h3>ข้อมูลเอกภาพ</h3><p>นำเข้าชุดข้อมูลปัจจุบันของพืชเศรษฐกิจ 9 ชนิด พร้อมตรวจสอบหัวคอลัมน์และข้อมูลซ้ำ</p></article><article><span>02</span><h3>ข้อมูลผลการขึ้นทะเบียน</h3><p>เลือกชนิดพืชและประเภทพื้นที่ปลูก/เก็บเกี่ยวก่อนนำเข้าเพื่อแสดงใน Dashboard</p></article><article><span>03</span><h3>สิทธิ์ผู้ช่วยดูแล</h3><p>ผู้ใช้ส่งคำขอผ่านบัญชี Google ผู้ดูแลหลักตรวจสอบและอนุมัติก่อนใช้งาน</p></article><article><span>04</span><h3>ตรวจสอบย้อนหลัง</h3><p>ทุกการนำเข้ามี Batch ID อีเมล เวลา และ Audit log สำหรับการตรวจสอบ</p></article></div><div className="security-note"><strong>ข้อกำหนดความปลอดภัย</strong><span>เว็บไซต์สาธารณะไม่มีแบบฟอร์ม username/password และไม่จัดเก็บรหัสผ่านใน source code</span></div></section>}
 
 createRoot(document.getElementById("root")!).render(<React.StrictMode><App/></React.StrictMode>);
