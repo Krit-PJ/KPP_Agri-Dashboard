@@ -106,3 +106,10 @@ Google Apps Script ใน `google-apps-script` ยังคงใช้กับ
 - ปรับตัวกรองกลับสู่ปีและอำเภอที่มีอยู่จริงเมื่อแหล่งข้อมูลเปลี่ยน
 - เพิ่ม unit tests ฝั่งเว็บ 5 รายการ รวมทั้งระบบเป็น 14 รายการ
 - เพิ่ม Dependabot สำหรับ npm และ GitHub Actions และเพิ่ม API typecheck ใน CI
+
+## รุ่น 4.4.3 — React Hooks Production Fix
+
+- แก้หน้าเว็บ production ว่างจาก React error #310 (`Rendered more hooks than during the previous render`)
+- ย้าย `useCallback` ให้อยู่ก่อน conditional return เพื่อให้ลำดับ Hooks คงที่ทุก render
+- เปลี่ยนชื่อ ECharts `use` เป็น `registerECharts` เพื่อไม่ให้ตัวตรวจ React Hooks ตีความผิด
+- เพิ่ม ESLint และ `eslint-plugin-react-hooks` ใน CI เพื่อหยุด deployment เมื่อพบการใช้ Hooks ผิดกฎ

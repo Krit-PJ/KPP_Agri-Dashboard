@@ -1,7 +1,7 @@
 {
   "name": "kpp-agricultural-dashboard",
   "private": true,
-  "version": "4.4.2",
+  "version": "4.4.3",
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -11,10 +11,16 @@
     "data:audit": "npm run build -w @kpp/shared && node scripts/audit-google-sheet.mjs",
     "dev": "npm run dev -w @kpp/web",
     "build": "npm run build -w @kpp/shared && npm run build -w @kpp/web",
+    "lint": "eslint apps/web/src apps/api/src packages/shared/src apps/web/test scripts",
     "test": "npm run test -w @kpp/shared && npm run test -w @kpp/web && node scripts/test-apps-script.mjs && node scripts/test-bundled-snapshot.mjs",
     "typecheck": "npm run build -w @kpp/shared && npm run typecheck -w @kpp/web"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "typescript-eslint": "^8.65.0"
   }
 }

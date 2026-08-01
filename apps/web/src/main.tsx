@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {createRoot} from "react-dom/client";
-import {init, use, type EChartsCoreOption} from "echarts/core";
+import {init, use as registerECharts, type EChartsCoreOption} from "echarts/core";
 import {BarChart, PieChart} from "echarts/charts";
 import {GridComponent, LegendComponent, TooltipComponent} from "echarts/components";
 import {CanvasRenderer} from "echarts/renderers";
@@ -13,7 +13,6 @@ import {
   selectYearFromChart,
   toggleYearSelection,
   yoy,
-  type Kpis,
 } from "@kpp/shared";
 import {
   bundledSnapshot,
@@ -25,17 +24,15 @@ import {
 } from "./dataSource";
 import "./styles.css";
 
-use([BarChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
+registerECharts([BarChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
 
 type Payload = DashboardPayload;
 type Metric = "planted" | "harvested" | "production" | "weightedYield";
-type YearSummary = {year: number; kpis: Kpis; issues: number};
-
 const numberFormat = new Intl.NumberFormat("th-TH", {maximumFractionDigits: 0});
 const decimalFormat = new Intl.NumberFormat("th-TH", {maximumFractionDigits: 1});
 const percentFormat = new Intl.NumberFormat("th-TH", {style: "percent", maximumFractionDigits: 1});
 const dateFormat = new Intl.DateTimeFormat("th-TH", {dateStyle: "medium", timeStyle: "short"});
-const appVersion = "4.4.2";
+const appVersion = "4.4.3";
 const cropPalette = ["#16835e", "#2457c5", "#f2a33a", "#9a62c7", "#e05b72", "#6e7e45", "#d4b22c", "#4f92a6", "#e37d42"];
 const yearPalette = ["#16835e", "#2457c5", "#e7a124", "#9a62c7", "#df5c73", "#34889b", "#8d7039", "#5a7d3c", "#d6743f", "#5571a7", "#9c5678"];
 type FontSize = "normal" | "large" | "xlarge";
@@ -188,6 +185,11 @@ function App() {
     setCrop(current => options.crops.some(([cropId]) => cropId === current) ? current : cropCatalog[0][0]);
   }, [options]);
 
+  const activateYearFromChart = useCallback((year: number) => {
+    setSelectedYears(selectYearFromChart(year));
+    setChartSelectionNotice(`กำลังแสดงข้อมูลเฉพาะ พ.ศ. ${year} จากการเลือกบนกราฟ`);
+  }, []);
+
   const context = useMemo(() => published.filter(record =>
     record.crop_id === crop
     && (district === "all" || record.district_name === district)
@@ -285,10 +287,6 @@ function App() {
     setSelectedYears(current => toggleYearSelection(current, year));
     setChartSelectionNotice("");
   };
-  const activateYearFromChart = useCallback((year: number) => {
-    setSelectedYears(selectYearFromChart(year));
-    setChartSelectionNotice(`กำลังแสดงข้อมูลเฉพาะ พ.ศ. ${year} จากการเลือกบนกราฟ`);
-  }, []);
   const reset = () => {
     setSelectedYears(options.years.slice(0, 1));
     setCrop(cropCatalog[0][0]);

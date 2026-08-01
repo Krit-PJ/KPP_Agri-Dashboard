@@ -27,6 +27,11 @@ npm run dev
 
 Dashboard จะอ่านข้อมูลล่าสุดจากชีต `Annual_Data` โดยตรง หาก Google Sheets ไม่พร้อมชั่วคราว ระบบจะใช้ข้อมูล live ล่าสุดที่บันทึกไว้ในอุปกรณ์ และใช้ JSON snapshot เป็น fallback ลำดับสุดท้าย
 
+### Dashboard รุ่น 4.4.3
+
+- แก้หน้าเว็บว่างจาก React error #310 โดยทำให้ Hooks ถูกเรียกในลำดับคงที่ทุก render
+- เพิ่ม ESLint และ React Hooks rules ใน CI เพื่อป้องกัน conditional Hook กลับมาอีก
+
 ### Dashboard รุ่น 4.4.2
 
 - อัปเกรด Apache ECharts เป็น 6.1 เพื่อแก้ช่องโหว่ XSS และถอด React Router ที่ไม่ได้ใช้งาน
